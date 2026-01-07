@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3.js サンプル集</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            text-align: center;
+            padding: 60px 20px 40px;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: #666;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: #3498db;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #777;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .level-section {
+            margin-bottom: 50px;
+        }
+
+        .level-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .level-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .level-beginner .level-badge {
+            background: #27ae60;
+            color: #fff;
+        }
+
+        .level-intermediate .level-badge {
+            background: #3498db;
+            color: #fff;
+        }
+
+        .level-advanced .level-badge {
+            background: #9b59b6;
+            color: #fff;
+        }
+
+        .level-header h2 {
+            font-size: 1.5rem;
+        }
+
+        .level-header p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .samples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .sample-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.2s ease;
+            border: 1px solid #e0e0e0;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .sample-card:hover {
+            transform: translateY(-2px);
+            border-color: #3498db;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .sample-number {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            text-align: center;
+            background: #f0f4f8;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #555;
+        }
+
+        .sample-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+
+        .sample-desc {
+            font-size: 0.85rem;
+            color: #777;
+            line-height: 1.5;
+        }
+
+        .hero-viz {
+            height: 200px;
+            margin: 30px auto;
+            max-width: 800px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: #777;
+            font-size: 0.9rem;
+            background: #fff;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 40px;
+        }
+
+        .footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .tech-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tech-badge {
+            background: #f0f4f8;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .stats {
+                gap: 20px;
+            }
+
+            .stat-number {
+                font-size: 1.6rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>D3.js サンプル集</h1>
+        <p>初心者から上級者まで、段階的にD3.jsを学べる30個のサンプルを収録しています</p>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-number">30</div>
+                <div class="stat-label">サンプル</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number">3</div>
+                <div class="stat-label">レベル</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number">v7</div>
+                <div class="stat-label">D3.js</div>
+            </div>
+        </div>
+
+        <svg class="hero-viz" id="hero-viz"></svg>
+    </header>
+
+    <main class="container">
+        <section class="level-section level-beginner">
+            <div class="level-header">
+                <span class="level-badge">初心者</span>
+                <div>
+                    <h2>基礎を学ぶ（01-10）</h2>
+                    <p>D3.jsの基本的な概念と操作方法を学びます</p>
+                </div>
+            </div>
+            <div class="samples-grid">
+                <a href="samples/01-hello-d3.html" class="sample-card">
+                    <div class="sample-number">01</div>
+                    <div class="sample-title">Hello D3.js</div>
+                    <div class="sample-desc">DOM選択・追加・テキスト設定・スタイル適用</div>
+                </a>
+                <a href="samples/02-svg-basics.html" class="sample-card">
+                    <div class="sample-number">02</div>
+                    <div class="sample-title">SVGの基本</div>
+                    <div class="sample-desc">円・四角形・線・パスなどSVG要素の描画</div>
+                </a>
+                <a href="samples/03-data-binding.html" class="sample-card">
+                    <div class="sample-number">03</div>
+                    <div class="sample-title">データバインディング</div>
+                    <div class="sample-desc">Enter-Update-Exit パターン</div>
+                </a>
+                <a href="samples/04-scales.html" class="sample-card">
+                    <div class="sample-number">04</div>
+                    <div class="sample-title">スケール（Scale）</div>
+                    <div class="sample-desc">Linear, Band, Ordinal, Sqrt スケール</div>
+                </a>
+                <a href="samples/05-axes.html" class="sample-card">
+                    <div class="sample-number">05</div>
+                    <div class="sample-title">軸（Axes）</div>
+                    <div class="sample-desc">axisBottom, axisLeft, 時間軸, グリッド線</div>
+                </a>
+                <a href="samples/06-bar-chart.html" class="sample-card">
+                    <div class="sample-number">06</div>
+                    <div class="sample-title">基本的な棒グラフ</div>
+                    <div class="sample-desc">縦棒グラフ・横棒グラフの作成</div>
+                </a>
+                <a href="samples/07-line-chart.html" class="sample-card">
+                    <div class="sample-number">07</div>
+                    <div class="sample-title">基本的な折れ線グラフ</div>
+                    <div class="sample-desc">d3.line(), カーブタイプ</div>
+                </a>
+                <a href="samples/08-pie-chart.html" class="sample-card">
+                    <div class="sample-number">08</div>
+                    <div class="sample-title">基本的な円グラフ</div>
+                    <div class="sample-desc">d3.pie(), d3.arc(), ラベル配置</div>
+                </a>
+                <a href="samples/09-transitions.html" class="sample-card">
+                    <div class="sample-number">09</div>
+                    <div class="sample-title">トランジション</div>
+                    <div class="sample-desc">アニメーション, イージング関数, 遅延</div>
+                </a>
+                <a href="samples/10-events.html" class="sample-card">
+                    <div class="sample-number">10</div>
+                    <div class="sample-title">イベントハンドリング</div>
+                    <div class="sample-desc">マウスイベント, クリック, ドラッグ</div>
+                </a>
+            </div>
+        </section>
+
+        <section class="level-section level-intermediate">
+            <div class="level-header">
+                <span class="level-badge">中級者</span>
+                <div>
+                    <h2>実践的なチャート（11-20）</h2>
+                    <p>より実践的なチャート作成とインタラクション機能を学びます</p>
+                </div>
+            </div>
+            <div class="samples-grid">
+                <a href="samples/11-scatter-plot.html" class="sample-card">
+                    <div class="sample-number">11</div>
+                    <div class="sample-title">散布図</div>
+                    <div class="sample-desc">ツールチップ, 色・サイズエンコーディング</div>
+                </a>
+                <a href="samples/12-area-chart.html" class="sample-card">
+                    <div class="sample-number">12</div>
+                    <div class="sample-title">エリアチャート</div>
+                    <div class="sample-desc">d3.area(), グラデーション, 積み上げ</div>
+                </a>
+                <a href="samples/13-multi-line-chart.html" class="sample-card">
+                    <div class="sample-number">13</div>
+                    <div class="sample-title">マルチラインチャート</div>
+                    <div class="sample-desc">複数系列, 凡例, ホバーインタラクション</div>
+                </a>
+                <a href="samples/14-stacked-bar-chart.html" class="sample-card">
+                    <div class="sample-number">14</div>
+                    <div class="sample-title">積み上げ棒グラフ</div>
+                    <div class="sample-desc">d3.stack(), グループ化, 正規化表示</div>
+                </a>
+                <a href="samples/15-donut-chart.html" class="sample-card">
+                    <div class="sample-number">15</div>
+                    <div class="sample-title">ドーナツチャート</div>
+                    <div class="sample-desc">内側半径, 中央テキスト, アニメーション</div>
+                </a>
+                <a href="samples/16-tooltip.html" class="sample-card">
+                    <div class="sample-number">16</div>
+                    <div class="sample-title">ツールチップ</div>
+                    <div class="sample-desc">基本・リッチ・SVG内ツールチップ</div>
+                </a>
+                <a href="samples/17-responsive-chart.html" class="sample-card">
+                    <div class="sample-number">17</div>
+                    <div class="sample-title">レスポンシブチャート</div>
+                    <div class="sample-desc">viewBox, リサイズ対応</div>
+                </a>
+                <a href="samples/18-data-update.html" class="sample-card">
+                    <div class="sample-number">18</div>
+                    <div class="sample-title">データの更新</div>
+                    <div class="sample-desc">リアルタイム更新, General Update Pattern</div>
+                </a>
+                <a href="samples/19-zoom.html" class="sample-card">
+                    <div class="sample-number">19</div>
+                    <div class="sample-title">ズーム機能</div>
+                    <div class="sample-desc">d3.zoom(), パン・ズーム, スケール連動</div>
+                </a>
+                <a href="samples/20-brushing.html" class="sample-card">
+                    <div class="sample-number">20</div>
+                    <div class="sample-title">ブラッシング</div>
+                    <div class="sample-desc">d3.brush(), 範囲選択, フォーカス+コンテキスト</div>
+                </a>
+            </div>
+        </section>
+
+        <section class="level-section level-advanced">
+            <div class="level-header">
+                <span class="level-badge">上級者</span>
+                <div>
+                    <h2>高度な可視化（21-30）</h2>
+                    <p>高度な可視化手法とインタラクティブなダッシュボードを学びます</p>
+                </div>
+            </div>
+            <div class="samples-grid">
+                <a href="samples/21-force-graph.html" class="sample-card">
+                    <div class="sample-number">21</div>
+                    <div class="sample-title">力指向グラフ</div>
+                    <div class="sample-desc">d3.forceSimulation(), ノードドラッグ</div>
+                </a>
+                <a href="samples/22-treemap.html" class="sample-card">
+                    <div class="sample-number">22</div>
+                    <div class="sample-title">ツリーマップ</div>
+                    <div class="sample-desc">d3.treemap(), ドリルダウン</div>
+                </a>
+                <a href="samples/23-hierarchy-tree.html" class="sample-card">
+                    <div class="sample-number">23</div>
+                    <div class="sample-title">階層ツリー</div>
+                    <div class="sample-desc">d3.tree(), 展開/折りたたみ</div>
+                </a>
+                <a href="samples/24-circle-packing.html" class="sample-card">
+                    <div class="sample-number">24</div>
+                    <div class="sample-title">サークルパッキング</div>
+                    <div class="sample-desc">d3.pack(), ズーム</div>
+                </a>
+                <a href="samples/25-sunburst.html" class="sample-card">
+                    <div class="sample-number">25</div>
+                    <div class="sample-title">サンバースト図</div>
+                    <div class="sample-desc">d3.partition(), 階層表示</div>
+                </a>
+                <a href="samples/26-chord-diagram.html" class="sample-card">
+                    <div class="sample-number">26</div>
+                    <div class="sample-title">コードダイアグラム</div>
+                    <div class="sample-desc">d3.chord(), 関係性可視化</div>
+                </a>
+                <a href="samples/27-world-map.html" class="sample-card">
+                    <div class="sample-number">27</div>
+                    <div class="sample-title">世界地図</div>
+                    <div class="sample-desc">d3.geo, 投影法, コロプレス地図</div>
+                </a>
+                <a href="samples/28-heatmap.html" class="sample-card">
+                    <div class="sample-number">28</div>
+                    <div class="sample-title">ヒートマップ</div>
+                    <div class="sample-desc">グリッドベース, 相関マトリックス</div>
+                </a>
+                <a href="samples/29-radar-chart.html" class="sample-card">
+                    <div class="sample-number">29</div>
+                    <div class="sample-title">レーダーチャート</div>
+                    <div class="sample-desc">多角形チャート, 複数データ比較</div>
+                </a>
+                <a href="samples/30-interactive-dashboard.html" class="sample-card">
+                    <div class="sample-number">30</div>
+                    <div class="sample-title">インタラクティブダッシュボード</div>
+                    <div class="sample-desc">複合チャート, フィルター, リアルタイム更新</div>
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>D3.js サンプル集 - 学習目的で自由にご利用いただけます</p>
+        <div class="tech-info">
+            <span class="tech-badge">D3.js v7</span>
+            <a href="https://d3js.org/" class="tech-badge">公式サイト</a>
+            <a href="https://github.com/kkawailab/kklab-D3-samples" class="tech-badge">GitHub</a>
+        </div>
+    </footer>
+
+    <script>
+        // ヒーローセクションのシンプルなアニメーション
+        const svg = d3.select("#hero-viz");
+        const width = 800;
+        const height = 200;
+
+        svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+        // サンプルデータを生成（棒グラフ風）
+        const data = d3.range(20).map((d, i) => ({
+            x: i * 40 + 20,
+            height: 30 + Math.random() * 120
+        }));
+
+        // 落ち着いた青系のカラースケール
+        const colorScale = d3.scaleLinear()
+            .domain([0, data.length - 1])
+            .range(["#a8d8ea", "#3498db"]);
+
+        // バーを描画
+        const bars = svg.selectAll("rect")
+            .data(data)
+            .join("rect")
+            .attr("x", d => d.x)
+            .attr("y", height)
+            .attr("width", 30)
+            .attr("height", 0)
+            .attr("fill", (d, i) => colorScale(i))
+            .attr("rx", 4)
+            .attr("opacity", 0.8);
+
+        // アニメーションで表示
+        bars.transition()
+            .duration(800)
+            .delay((d, i) => i * 50)
+            .attr("y", d => height - d.height)
+            .attr("height", d => d.height);
+    </script>
+</body>
+</html>

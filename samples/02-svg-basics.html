@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>02 - SVGの基本</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #chart {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+        }
+        svg {
+            background: #fafafa;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>02 - SVGの基本</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsでSVG要素（円、四角形、線、テキスト）を描画する方法</p>
+    </div>
+    <div id="chart"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // SVGとは？
+        // ============================================
+        // SVG（Scalable Vector Graphics）は、XMLベースの2Dベクター画像形式です
+        // ブラウザでネイティブにサポートされ、拡大縮小しても画質が劣化しません
+        // D3.jsでは主にSVGを使ってグラフやチャートを描画します
+
+        // ============================================
+        // SVGキャンバスの作成
+        // ============================================
+        // まず、描画領域となるSVG要素を作成します
+        // width と height でキャンバスのサイズを指定
+        const svg = d3.select("#chart")
+            .append("svg")           // SVG要素を追加
+            .attr("width", 600)      // 幅を600pxに設定
+            .attr("height", 400);    // 高さを400pxに設定
+
+        // ============================================
+        // 1. 四角形（rect要素）
+        // ============================================
+        // rect は四角形を描画する要素です
+        // x, y: 左上角の座標
+        // width, height: 幅と高さ
+        // fill: 塗りつぶしの色
+        // stroke: 枠線の色
+        // stroke-width: 枠線の太さ
+        svg.append("rect")
+            .attr("x", 50)              // 左上X座標
+            .attr("y", 50)              // 左上Y座標
+            .attr("width", 100)         // 幅
+            .attr("height", 80)         // 高さ
+            .attr("fill", "#4a90d9")    // 塗りつぶし色（青）
+            .attr("stroke", "#2d5a8a")  // 枠線の色
+            .attr("stroke-width", 2);   // 枠線の太さ
+
+        // テキストラベル（text要素）
+        // text-anchor: テキストの配置基準（middle = 中央揃え）
+        svg.append("text")
+            .attr("x", 100)
+            .attr("y", 160)
+            .attr("text-anchor", "middle")  // 中央揃え
+            .attr("font-size", "14px")
+            .text("四角形");
+
+        // ============================================
+        // 2. 円（circle要素）
+        // ============================================
+        // circle は円を描画する要素です
+        // cx, cy: 中心座標
+        // r: 半径
+        svg.append("circle")
+            .attr("cx", 250)            // 中心のX座標
+            .attr("cy", 90)             // 中心のY座標
+            .attr("r", 50)              // 半径
+            .attr("fill", "#e74c3c")    // 塗りつぶし色（赤）
+            .attr("stroke", "#a93226")
+            .attr("stroke-width", 2);
+
+        svg.append("text")
+            .attr("x", 250)
+            .attr("y", 160)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .text("円");
+
+        // ============================================
+        // 3. 楕円（ellipse要素）
+        // ============================================
+        // ellipse は楕円を描画する要素です
+        // cx, cy: 中心座標
+        // rx: X方向の半径、ry: Y方向の半径
+        svg.append("ellipse")
+            .attr("cx", 400)            // 中心のX座標
+            .attr("cy", 90)             // 中心のY座標
+            .attr("rx", 70)             // X方向の半径（横幅）
+            .attr("ry", 40)             // Y方向の半径（縦幅）
+            .attr("fill", "#2ecc71")    // 塗りつぶし色（緑）
+            .attr("stroke", "#1e8449")
+            .attr("stroke-width", 2);
+
+        svg.append("text")
+            .attr("x", 400)
+            .attr("y", 160)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .text("楕円");
+
+        // ============================================
+        // 4. 線（line要素）
+        // ============================================
+        // line は直線を描画する要素です
+        // x1, y1: 始点の座標
+        // x2, y2: 終点の座標
+        // ※lineには塗りつぶし（fill）はなく、strokeのみ
+        svg.append("line")
+            .attr("x1", 50)             // 始点のX座標
+            .attr("y1", 220)            // 始点のY座標
+            .attr("x2", 150)            // 終点のX座標
+            .attr("y2", 280)            // 終点のY座標
+            .attr("stroke", "#9b59b6")  // 線の色（紫）
+            .attr("stroke-width", 4);   // 線の太さ
+
+        svg.append("text")
+            .attr("x", 100)
+            .attr("y", 310)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .text("線");
+
+        // ============================================
+        // 5. 多角形（polygon要素）
+        // ============================================
+        // polygon は多角形を描画する要素です
+        // points: 頂点の座標を "x1,y1 x2,y2 x3,y3..." の形式で指定
+        // 自動的に最初の点と最後の点が結ばれます
+        svg.append("polygon")
+            .attr("points", "250,200 290,280 210,280")  // 三角形の3頂点
+            .attr("fill", "#f39c12")    // 塗りつぶし色（オレンジ）
+            .attr("stroke", "#d68910")
+            .attr("stroke-width", 2);
+
+        svg.append("text")
+            .attr("x", 250)
+            .attr("y", 310)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .text("三角形");
+
+        // ============================================
+        // 6. パス（path要素）- 複雑な形状
+        // ============================================
+        // path は最も柔軟な描画要素で、任意の形状を描けます
+        // d3.path() を使うと、JavaScriptでパスを構築できます
+
+        // 星形を描画する例
+        const starPath = d3.path();  // パスオブジェクトを作成
+        const cx = 400, cy = 240;    // 中心座標
+        const outerR = 50;           // 外側の半径（頂点）
+        const innerR = 25;           // 内側の半径（谷）
+        const points = 5;            // 頂点の数（5 = 五芒星）
+
+        // 10個の点を交互に計算（外側→内側→外側...）
+        for (let i = 0; i < points * 2; i++) {
+            // 偶数番目は外側、奇数番目は内側の半径を使用
+            const r = i % 2 === 0 ? outerR : innerR;
+            // 角度を計算（-90度から開始して上向きに）
+            const angle = (i * Math.PI) / points - Math.PI / 2;
+            // 三角関数で座標を計算
+            const x = cx + r * Math.cos(angle);
+            const y = cy + r * Math.sin(angle);
+            // 最初の点はmoveTo、それ以降はlineTo
+            if (i === 0) starPath.moveTo(x, y);  // ペンを移動
+            else starPath.lineTo(x, y);          // 線を引く
+        }
+        starPath.closePath();  // パスを閉じる（始点と終点を結ぶ）
+
+        // パスを描画
+        // d属性にパス文字列を設定
+        svg.append("path")
+            .attr("d", starPath.toString())  // パスデータを設定
+            .attr("fill", "#1abc9c")         // 塗りつぶし色（ターコイズ）
+            .attr("stroke", "#16a085")
+            .attr("stroke-width", 2);
+
+        svg.append("text")
+            .attr("x", 400)
+            .attr("y", 310)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .text("星（パス）");
+
+        // ============================================
+        // タイトル
+        // ============================================
+        svg.append("text")
+            .attr("x", 300)
+            .attr("y", 370)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "18px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#333")
+            .text("SVG基本図形");
+    </script>
+</body>
+</html>

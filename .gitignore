@@ -1,0 +1,29 @@
+# LaTeX auxiliary files
+*.aux
+*.idx
+*.ilg
+*.ind
+*.log
+*.out
+*.toc
+*.synctex.gz
+
+# Node.js
+node_modules/
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
+
+# Guide instructions (not to be committed)
+GUIDE.md

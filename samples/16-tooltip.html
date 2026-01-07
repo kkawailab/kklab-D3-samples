@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>16 - ツールチップ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .tooltip-basic {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .tooltip-rich {
+            position: absolute;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            min-width: 180px;
+        }
+        .tooltip-rich h4 {
+            margin: 0 0 10px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #4a90d9;
+        }
+        .tooltip-rich .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 13px;
+        }
+        .tooltip-rich .label {
+            color: #666;
+        }
+        .tooltip-rich .value {
+            font-weight: bold;
+        }
+        .tooltip-rich .change {
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .tooltip-rich .change.positive {
+            background: #d4edda;
+            color: #155724;
+        }
+        .tooltip-rich .change.negative {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .grid line {
+            stroke: #e0e0e0;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>16 - ツールチップ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> 基本的なツールチップ、リッチなツールチップ、SVG内ツールチップ、位置調整</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>基本的なツールチップ</h2>
+        <div id="basic-tooltip"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>リッチツールチップ（詳細情報付き）</h2>
+        <div id="rich-tooltip"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>SVG内ツールチップ</h2>
+        <div id="svg-tooltip"></div>
+    </div>
+
+    <div class="tooltip-basic" id="tooltip-basic"></div>
+    <div class="tooltip-rich" id="tooltip-rich"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // ツールチップとは？
+        // ============================================
+        // ツールチップは、マウスをホバーした際に詳細情報を表示するUI要素です
+        // D3.jsでは主に以下の3つの方法でツールチップを実装します：
+        // 1. HTML要素を使った基本的なツールチップ（DOM操作）
+        // 2. リッチなスタイリングを施した詳細ツールチップ
+        // 3. SVG内に描画するツールチップ（SVGグループ要素）
+        // マウスイベント（mouseenter, mousemove, mouseleave）を使って
+        // 表示・非表示を制御します
+
+        // ============================================
+        // 1. 基本的なツールチップ（HTML要素使用）
+        // ============================================
+        // シンプルなテキスト情報を表示する最も基本的な実装
+
+        // サンプルデータ：月別売上データ
+        const basicData = [
+            {month: "1月", value: 120},
+            {month: "2月", value: 150},
+            {month: "3月", value: 180},
+            {month: "4月", value: 140},
+            {month: "5月", value: 200},
+            {month: "6月", value: 170}
+        ];
+
+        // マージン設定（グラフの余白）
+        const margin1 = {top: 20, right: 30, bottom: 40, left: 50};
+        const width1 = 600 - margin1.left - margin1.right;
+        const height1 = 250 - margin1.top - margin1.bottom;
+
+        // SVGコンテナを作成
+        const svg1 = d3.select("#basic-tooltip")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // X軸: scaleBand（カテゴリ軸）
+        // map()でデータから月名だけを抽出してdomain（定義域）に設定
+        const x1 = d3.scaleBand()
+            .domain(basicData.map(d => d.month))
+            .range([0, width1])
+            .padding(0.3);  // 棒同士の間隔（0〜1）
+
+        // Y軸: scaleLinear（数値軸）
+        // 最大値の1.1倍まで表示することで上部に余白を確保
+        const y1 = d3.scaleLinear()
+            .domain([0, d3.max(basicData, d => d.value) * 1.1])
+            .range([height1, 0]);  // SVGは上が0なので反転
+
+        // X軸の描画
+        svg1.append("g")
+            .attr("transform", `translate(0,${height1})`)  // 下端に移動
+            .call(d3.axisBottom(x1));  // axisBottom: 下向きの軸
+
+        // Y軸の描画
+        svg1.append("g")
+            .call(d3.axisLeft(y1));  // axisLeft: 左向きの軸
+
+        // ツールチップ要素を選択（HTML内で事前定義済み）
+        const tooltipBasic = d3.select("#tooltip-basic");
+
+        // ============================================
+        // 棒グラフの描画とツールチップイベントの設定
+        // ============================================
+
+        svg1.selectAll(".bar")
+            .data(basicData)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", d => x1(d.month))  // d: データオブジェクト
+            .attr("y", d => y1(d.value))
+            .attr("width", x1.bandwidth())  // bandwidth(): バンドの幅を取得
+            .attr("height", d => height1 - y1(d.value))
+            .attr("fill", "#4a90d9")
+            .attr("rx", 3)  // 角丸
+            .style("cursor", "pointer")  // マウスカーソルをポインターに変更
+            // mouseenter: マウスが要素に入った時
+            .on("mouseenter", function(event, d) {
+                // this: イベントが発生した要素（この棒）
+                // event: マウスイベントオブジェクト
+                // d: この要素にバインドされたデータ
+                d3.select(this).attr("fill", "#e74c3c");  // 棒の色を赤に変更
+
+                // ツールチップを表示
+                tooltipBasic
+                    .style("opacity", 1)  // 透明度1（表示）
+                    .html(`${d.month}: <strong>${d.value}</strong>`)  // 内容を設定
+                    .style("left", (event.pageX + 10) + "px")  // マウス位置から右に10px
+                    .style("top", (event.pageY - 30) + "px");  // マウス位置から上に30px
+            })
+            // mousemove: マウスが要素上で移動した時
+            .on("mousemove", function(event) {
+                // マウスカーソルに追従してツールチップを移動
+                tooltipBasic
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 30) + "px");
+            })
+            // mouseleave: マウスが要素から離れた時
+            .on("mouseleave", function() {
+                d3.select(this).attr("fill", "#4a90d9");  // 棒の色を元に戻す
+                tooltipBasic.style("opacity", 0);  // ツールチップを非表示
+            });
+
+        // ============================================
+        // 2. リッチツールチップ（詳細情報付き）
+        // ============================================
+        // 複数の情報を構造化して表示する高度なツールチップ
+
+        // サンプルデータ：製品別売上データ（複数の属性を含む）
+        const richData = [
+            {name: "製品A", sales: 2500, units: 150, change: 12.5, target: 2200},
+            {name: "製品B", sales: 1800, units: 95, change: -5.2, target: 2000},
+            {name: "製品C", sales: 3200, units: 200, change: 25.0, target: 2800},
+            {name: "製品D", sales: 1500, units: 80, change: 8.3, target: 1400},
+            {name: "製品E", sales: 2100, units: 120, change: -2.1, target: 2200}
+        ];
+
+        // マージン設定
+        const margin2 = {top: 20, right: 30, bottom: 40, left: 50};
+        const width2 = 600 - margin2.left - margin2.right;
+        const height2 = 280 - margin2.top - margin2.bottom;
+
+        // SVGコンテナを作成
+        const svg2 = d3.select("#rich-tooltip")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        // X軸: 製品名でバンドスケール
+        const x2 = d3.scaleBand()
+            .domain(richData.map(d => d.name))
+            .range([0, width2])
+            .padding(0.3);
+
+        // Y軸: 売上値で線形スケール
+        const y2 = d3.scaleLinear()
+            .domain([0, d3.max(richData, d => d.sales) * 1.1])
+            .range([height2, 0]);
+
+        // グリッド線の追加（見やすさ向上）
+        // tickSize(-width2): 左から右まで横線を引く
+        // tickFormat(""): 軸ラベルは非表示
+        svg2.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y2).tickSize(-width2).tickFormat(""));
+
+        // X軸の描画
+        svg2.append("g")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(x2));
+
+        // Y軸の描画（カスタムフォーマット）
+        // tickFormat: 1000で割って "K" を付ける（例：2000 → 2K）
+        svg2.append("g")
+            .call(d3.axisLeft(y2).tickFormat(d => d / 1000 + "K"));
+
+        // リッチツールチップ要素を選択
+        const tooltipRich = d3.select("#tooltip-rich");
+
+        // ============================================
+        // 棒グラフの描画（前年比に応じた色分け）
+        // ============================================
+
+        svg2.selectAll(".bar")
+            .data(richData)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", d => x2(d.name))
+            .attr("y", d => y2(d.sales))
+            .attr("width", x2.bandwidth())
+            .attr("height", d => height2 - y2(d.sales))
+            // 条件演算子で色を決定：前年比がプラスなら緑、マイナスなら赤
+            .attr("fill", d => d.change >= 0 ? "#2ecc71" : "#e74c3c")
+            .attr("rx", 3)
+            .style("cursor", "pointer")
+            .on("mouseenter", function(event, d) {
+                d3.select(this).attr("opacity", 0.8);  // 少し透明に
+
+                // 前年比の表示スタイルを決定
+                const changeClass = d.change >= 0 ? "positive" : "negative";
+                const changeSign = d.change >= 0 ? "+" : "";  // プラスの場合は"+"を付ける
+
+                // HTMLテンプレートリテラルで構造化されたツールチップを作成
+                // toLocaleString(): 数値をカンマ区切りに整形（例：2500 → 2,500）
+                tooltipRich
+                    .style("opacity", 1)
+                    .html(`
+                        <h4>${d.name}</h4>
+                        <div class="row">
+                            <span class="label">売上高</span>
+                            <span class="value">¥${d.sales.toLocaleString()}万</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">販売数</span>
+                            <span class="value">${d.units}個</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">目標</span>
+                            <span class="value">¥${d.target.toLocaleString()}万</span>
+                        </div>
+                        <div class="row">
+                            <span class="label">前年比</span>
+                            <span class="change ${changeClass}">${changeSign}${d.change}%</span>
+                        </div>
+                    `);
+
+                // ============================================
+                // ツールチップ位置調整（画面端対応）
+                // ============================================
+                // ツールチップが画面外に出ないように位置を調整
+                const tooltipWidth = 200;
+                let left = event.pageX + 15;  // マウスの右側に表示
+                // 画面右端を超える場合は左側に表示
+                if (left + tooltipWidth > window.innerWidth) {
+                    left = event.pageX - tooltipWidth - 15;
+                }
+
+                tooltipRich
+                    .style("left", left + "px")
+                    .style("top", (event.pageY - 20) + "px");
+            })
+            .on("mouseleave", function() {
+                d3.select(this).attr("opacity", 1);  // 透明度を元に戻す
+                tooltipRich.style("opacity", 0);  // ツールチップを非表示
+            });
+
+        // ============================================
+        // 目標ラインの描画
+        // ============================================
+        // 各製品の目標値を破線で表示
+        svg2.selectAll(".target-line")
+            .data(richData)
+            .enter()
+            .append("line")
+            .attr("x1", d => x2(d.name))  // バンドの開始位置
+            .attr("x2", d => x2(d.name) + x2.bandwidth())  // バンドの終了位置
+            .attr("y1", d => y2(d.target))  // 目標値のY座標
+            .attr("y2", d => y2(d.target))  // 水平線なのでY座標は同じ
+            .attr("stroke", "#333")
+            .attr("stroke-width", 2)
+            .attr("stroke-dasharray", "4,2");  // 破線パターン（4px線、2px空白）
+
+        // ============================================
+        // 3. SVG内ツールチップ
+        // ============================================
+        // HTML要素ではなく、SVG要素でツールチップを描画する方法
+
+        // ランダムな散布図データを生成
+        // d3.range(20): 0〜19の配列を生成
+        const svgTooltipData = d3.range(20).map(() => ({
+            x: Math.random() * 500 + 50,     // X座標: 50〜550
+            y: Math.random() * 200 + 30,     // Y座標: 30〜230
+            value: Math.floor(Math.random() * 100) + 1  // 値: 1〜100
+        }));
+
+        // SVGコンテナを作成
+        const svg3 = d3.select("#svg-tooltip")
+            .append("svg")
+            .attr("width", 600)
+            .attr("height", 280);
+
+        // ============================================
+        // SVGグループ要素でツールチップを作成
+        // ============================================
+        // HTML要素ではなくSVGのg要素を使う利点：
+        // - SVGの座標系で位置を指定できる
+        // - ズームやパンに追従しやすい
+        // - SVG要素として一貫性がある
+
+        const tooltipGroup = svg3.append("g")
+            .attr("class", "tooltip-group")
+            .style("display", "none");  // 初期状態は非表示
+
+        // ツールチップの背景（矩形）
+        tooltipGroup.append("rect")
+            .attr("width", 80)
+            .attr("height", 30)
+            .attr("fill", "rgba(0,0,0,0.8)")  // 半透明の黒
+            .attr("rx", 4);  // 角丸
+
+        // ツールチップのテキスト
+        const tooltipText = tooltipGroup.append("text")
+            .attr("x", 40)  // 矩形の中央
+            .attr("y", 20)  // 矩形の中央（垂直）
+            .attr("text-anchor", "middle")  // テキストを中央揃え
+            .attr("fill", "white")
+            .attr("font-size", "12px");
+
+        // ============================================
+        // 散布図の円を描画
+        // ============================================
+
+        svg3.selectAll("circle")
+            .data(svgTooltipData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y)
+            .attr("r", d => d.value / 10 + 5)  // 値に応じて半径を変更
+            // interpolateRainbow: 0〜1の値を虹色のグラデーションに変換
+            .attr("fill", d => d3.interpolateRainbow(d.value / 100))
+            .attr("opacity", 0.7)
+            .style("cursor", "pointer")
+            .on("mouseenter", function(event, d) {
+                // 円を拡大＆不透明度を上げる
+                d3.select(this)
+                    .transition()  // アニメーション開始
+                    .duration(150)  // 150ms
+                    .attr("r", d.value / 10 + 10)  // 半径を拡大
+                    .attr("opacity", 1);
+
+                // ツールチップを表示
+                // display: null → CSSの初期値に戻す（displayプロパティを削除）
+                tooltipGroup.style("display", null)
+                    // 円の上方に配置（X: 円の中心から左に40px、Y: 円の上から45px）
+                    .attr("transform", `translate(${d.x - 40}, ${d.y - 45})`);
+                tooltipText.text(`値: ${d.value}`);
+            })
+            .on("mouseleave", function(event, d) {
+                // 円を元のサイズに戻す
+                d3.select(this)
+                    .transition()
+                    .duration(150)
+                    .attr("r", d.value / 10 + 5)
+                    .attr("opacity", 0.7);
+
+                // ツールチップを非表示
+                tooltipGroup.style("display", "none");
+            });
+
+        // 説明テキスト
+        svg3.append("text")
+            .attr("x", 300)
+            .attr("y", 270)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "13px")
+            .attr("fill", "#666")
+            .text("円にホバーするとSVG内にツールチップが表示されます");
+    </script>
+</body>
+</html>

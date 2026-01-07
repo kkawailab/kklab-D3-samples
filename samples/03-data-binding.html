@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>03 - データバインディング</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            background: #fafafa;
+            border: 1px solid #ddd;
+        }
+        .controls {
+            margin-top: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #357abd;
+        }
+    </style>
+</head>
+<body>
+    <h1>03 - データバインディング</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsの核心機能 - データと要素の結合（Enter, Update, Exit パターン）</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>データバインディングの基本</h2>
+        <div id="chart1"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>動的なデータ更新（Enter-Update-Exit）</h2>
+        <div id="chart2"></div>
+        <div class="controls">
+            <button onclick="addData()">データ追加</button>
+            <button onclick="removeData()">データ削除</button>
+            <button onclick="updateData()">データ更新</button>
+            <button onclick="resetData()">リセット</button>
+        </div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // データバインディングとは？
+        // ============================================
+        // D3.jsの核心機能は「データバインディング」です
+        // これは、データ配列の各要素をDOM要素に紐付ける仕組みです
+        // データが変わるとDOMも自動的に更新できます
+
+        // ============================================
+        // チャート1: 基本的なデータバインディング
+        // ============================================
+
+        // 表示したいデータの配列
+        const data1 = [30, 80, 45, 60, 20, 90, 55];
+
+        // SVGキャンバスを作成
+        const svg1 = d3.select("#chart1")
+            .append("svg")
+            .attr("width", 600)
+            .attr("height", 150);
+
+        // データバインディングの基本パターン
+        // 1. selectAll: 対象となる要素を選択（まだ存在しなくてもOK）
+        // 2. data: データ配列をバインド
+        // 3. enter: データに対応するDOM要素がない部分を取得
+        // 4. append: 新しい要素を追加
+        svg1.selectAll("circle")      // 円を選択（まだ存在しない）
+            .data(data1)              // データ配列を紐付け
+            .enter()                  // 「入り口」を取得
+            .append("circle")         // 円を追加
+            // d: データの値、i: インデックス（0から始まる）
+            .attr("cx", (d, i) => 50 + i * 80)  // X座標（インデックスで位置を決定）
+            .attr("cy", 75)                      // Y座標（固定）
+            .attr("r", d => d / 3)               // 半径（データ値に比例）
+            .attr("fill", "#4a90d9")
+            .attr("opacity", 0.7);
+
+        // データ値をテキストとして表示
+        svg1.selectAll("text")
+            .data(data1)
+            .enter()
+            .append("text")
+            .attr("x", (d, i) => 50 + i * 80)
+            .attr("y", 130)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text(d => d);  // データ値をそのまま表示
+
+        // ============================================
+        // チャート2: Enter-Update-Exit パターン
+        // ============================================
+        // これはD3.jsで最も重要な概念の一つです
+        // データが変更されたときの3つの状態を処理します：
+        // - Enter: 新しいデータに対応する要素を作成
+        // - Update: 既存のデータに対応する要素を更新
+        // - Exit: 削除されたデータに対応する要素を削除
+
+        let data2 = [25, 50, 75, 100, 125];
+
+        const svg2 = d3.select("#chart2")
+            .append("svg")
+            .attr("width", 600)
+            .attr("height", 200);
+
+        // データ更新関数
+        function update(data) {
+            // ============================================
+            // データ結合（Data Join）
+            // ============================================
+            // data() の第2引数はキー関数で、各データを一意に識別します
+            // これにより、データの追加・削除・更新を正確に追跡できます
+            const bars = svg2.selectAll("rect")
+                .data(data, d => d);  // d => d はデータ値自体をキーとして使用
+
+            const labels = svg2.selectAll("text")
+                .data(data, d => d);
+
+            // ============================================
+            // EXIT: 削除される要素
+            // ============================================
+            // exit() は、データがなくなったDOM要素を取得します
+            // これらの要素はアニメーションで消してからremove()で削除
+            bars.exit()
+                .transition()         // アニメーションを開始
+                .duration(500)        // 500ミリ秒かけて
+                .attr("width", 0)     // 幅を0に
+                .attr("x", 600)       // 画面外へ移動
+                .remove();            // DOMから削除
+
+            labels.exit()
+                .transition()
+                .duration(500)
+                .attr("x", 600)
+                .style("opacity", 0)  // フェードアウト
+                .remove();
+
+            // ============================================
+            // ENTER: 新しい要素
+            // ============================================
+            // enter() は、新しいデータに対応する要素を作成します
+            // 初期位置を画面外に設定して、アニメーションで登場させます
+            const barsEnter = bars.enter()
+                .append("rect")
+                .attr("x", -50)       // 画面外から開始
+                .attr("y", (d, i) => i * 35 + 10)
+                .attr("width", 0)     // 幅0から開始
+                .attr("height", 30)
+                .attr("fill", "#e74c3c");
+
+            const labelsEnter = labels.enter()
+                .append("text")
+                .attr("x", -50)
+                .attr("y", (d, i) => i * 35 + 30)
+                .attr("font-size", "14px")
+                .attr("fill", "white")
+                .style("opacity", 0);  // 透明から開始
+
+            // ============================================
+            // UPDATE + ENTER: すべての要素を更新
+            // ============================================
+            // merge() は enter() と update() の両方の要素を結合します
+            // これにより、新しい要素も既存の要素も同じ処理で更新できます
+            barsEnter.merge(bars)     // enter + update を結合
+                .transition()
+                .duration(500)
+                .attr("x", 10)
+                .attr("y", (d, i) => i * 35 + 10)
+                .attr("width", d => d * 4)  // データ値に基づく幅
+                .attr("fill", (d, i) => d3.schemeCategory10[i % 10]);  // カラフルな色
+
+            labelsEnter.merge(labels)
+                .transition()
+                .duration(500)
+                .attr("x", 20)
+                .attr("y", (d, i) => i * 35 + 30)
+                .style("opacity", 1)
+                .text(d => `値: ${d}`);
+        }
+
+        // 初期描画
+        update(data2);
+
+        // ============================================
+        // コントロール関数
+        // ============================================
+        // これらの関数でデータを変更し、update()を呼び出すと
+        // Enter-Update-Exit パターンが自動的に適用されます
+
+        // データを追加
+        function addData() {
+            if (data2.length < 8) {  // 最大8個まで
+                const newValue = Math.floor(Math.random() * 100) + 25;
+                data2.push(newValue);
+                update(data2);  // 再描画
+            }
+        }
+
+        // データを削除（最後の要素）
+        function removeData() {
+            if (data2.length > 1) {  // 最低1個は残す
+                data2.pop();
+                update(data2);  // 再描画
+            }
+        }
+
+        // すべてのデータ値をランダムに更新
+        function updateData() {
+            data2 = data2.map(() => Math.floor(Math.random() * 100) + 25);
+            update(data2);  // 再描画
+        }
+
+        // 初期状態にリセット
+        function resetData() {
+            data2 = [25, 50, 75, 100, 125];
+            update(data2);  // 再描画
+        }
+    </script>
+</body>
+</html>

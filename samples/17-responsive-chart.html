@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>17 - レスポンシブチャート</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        #responsive-chart {
+            width: 100%;
+            max-width: 100%;
+        }
+        #responsive-chart svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .resize-handle {
+            background: #eee;
+            padding: 10px;
+            text-align: center;
+            cursor: ew-resize;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .size-indicator {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .grid line {
+            stroke: #e0e0e0;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>17 - レスポンシブチャート</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> viewBoxを使ったレスポンシブデザイン、リサイズ対応、アスペクト比の維持</p>
+        <p>ブラウザのウィンドウサイズを変更すると、チャートが自動的にリサイズされます。</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>viewBoxによるレスポンシブチャート</h2>
+        <div id="responsive-chart"></div>
+        <div class="size-indicator" id="size-indicator">現在のサイズ: --</div>
+    </div>
+
+    <div class="chart-container">
+        <h2>リサイズ対応チャート（動的再描画）</h2>
+        <div id="dynamic-chart"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // レスポンシブチャートとは？
+        // ============================================
+        // ウィンドウサイズや画面幅に応じて自動的にサイズが変わるチャート
+        // D3.jsでレスポンシブを実現する2つの主要な方法：
+        // 1. viewBox属性を使った自動スケーリング（SVGの仮想座標系）
+        //    - SVG全体を固定サイズの仮想空間として定義
+        //    - ブラウザが自動的に拡大縮小
+        //    - 再描画不要で軽量
+        // 2. リサイズイベントで動的に再描画
+        //    - ウィンドウサイズに応じてチャートを完全に再描画
+        //    - 細かい調整が可能（軸の目盛り数、ラベルサイズなど）
+
+        // ============================================
+        // 1. viewBoxによるレスポンシブチャート
+        // ============================================
+        // 最もシンプルで一般的な方法
+
+        // サンプルデータ：1年間の月別売上データ
+        const data1 = [
+            {month: "1月", value: 120},
+            {month: "2月", value: 150},
+            {month: "3月", value: 180},
+            {month: "4月", value: 140},
+            {month: "5月", value: 200},
+            {month: "6月", value: 170},
+            {month: "7月", value: 220},
+            {month: "8月", value: 190},
+            {month: "9月", value: 160},
+            {month: "10月", value: 185},
+            {month: "11月", value: 210},
+            {month: "12月", value: 240}
+        ];
+
+        // ============================================
+        // viewBoxの設定
+        // ============================================
+        // viewBox: SVGの仮想座標系を定義（実際のピクセルサイズとは独立）
+        // "0 0 800 400" = 左上(0,0)から幅800、高さ400の仮想空間
+        const viewBoxWidth = 800;
+        const viewBoxHeight = 400;
+        const margin1 = {top: 30, right: 30, bottom: 50, left: 60};
+        const width1 = viewBoxWidth - margin1.left - margin1.right;
+        const height1 = viewBoxHeight - margin1.top - margin1.bottom;
+
+        const svg1 = d3.select("#responsive-chart")
+            .append("svg")
+            // viewBox: 仮想座標系を設定
+            .attr("viewBox", `0 0 ${viewBoxWidth} ${viewBoxHeight}`)
+            // preserveAspectRatio: アスペクト比の維持方法
+            // "xMidYMid meet" = 中央配置、全体を表示
+            .attr("preserveAspectRatio", "xMidYMid meet")
+            // width: 100% でコンテナ幅に合わせる
+            .style("width", "100%")
+            // height: auto でアスペクト比を維持
+            .style("height", "auto")
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // スケール設定（仮想座標系内で定義）
+        const x1 = d3.scaleBand()
+            .domain(data1.map(d => d.month))
+            .range([0, width1])
+            .padding(0.2);
+
+        const y1 = d3.scaleLinear()
+            .domain([0, d3.max(data1, d => d.value) * 1.1])
+            .range([height1, 0]);
+
+        // グリッド線の追加
+        svg1.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y1).tickSize(-width1).tickFormat(""));
+
+        // ============================================
+        // チャート要素の描画
+        // ============================================
+        // viewBox内の仮想座標系で描画（自動的にスケーリングされる）
+
+        // 棒グラフ
+        svg1.selectAll(".bar")
+            .data(data1)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", d => x1(d.month))
+            .attr("y", d => y1(d.value))
+            .attr("width", x1.bandwidth())
+            .attr("height", d => height1 - y1(d.value))
+            .attr("fill", "#4a90d9")
+            .attr("rx", 3);
+
+        // 値ラベル
+        svg1.selectAll(".label")
+            .data(data1)
+            .enter()
+            .append("text")
+            .attr("x", d => x1(d.month) + x1.bandwidth() / 2)
+            .attr("y", d => y1(d.value) - 5)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")  // viewBox内での固定サイズ
+            .text(d => d.value);
+
+        // 軸の描画
+        svg1.append("g")
+            .attr("transform", `translate(0,${height1})`)
+            .call(d3.axisBottom(x1))
+            .selectAll("text")
+            .attr("font-size", "12px");
+
+        svg1.append("g")
+            .call(d3.axisLeft(y1))
+            .selectAll("text")
+            .attr("font-size", "12px");
+
+        // タイトル
+        svg1.append("text")
+            .attr("x", width1 / 2)
+            .attr("y", -10)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "18px")
+            .attr("font-weight", "bold")
+            .text("月別売上データ（viewBoxレスポンシブ）");
+
+        // ============================================
+        // サイズ表示の更新
+        // ============================================
+        // 実際の表示サイズを取得して表示
+
+        function updateSizeIndicator() {
+            const container = document.getElementById("responsive-chart");
+            // getBoundingClientRect(): 要素の実際の表示サイズと位置を取得
+            const rect = container.getBoundingClientRect();
+            document.getElementById("size-indicator").textContent =
+                `現在のサイズ: ${Math.round(rect.width)} x ${Math.round(rect.height)}px`;
+        }
+        updateSizeIndicator();
+        // リサイズ時にサイズ表示を更新
+        window.addEventListener("resize", updateSizeIndicator);
+
+        // ============================================
+        // 2. 動的リサイズチャート（再描画方式）
+        // ============================================
+        // ウィンドウサイズに応じてチャートを完全に再描画
+        // メリット：画面サイズに応じた細かい調整が可能
+        // デメリット：再描画のコストがかかる
+
+        // サンプルデータ
+        const data2 = [
+            {category: "A", value: 30},
+            {category: "B", value: 50},
+            {category: "C", value: 80},
+            {category: "D", value: 65},
+            {category: "E", value: 45},
+            {category: "F", value: 70}
+        ];
+
+        const chartContainer = d3.select("#dynamic-chart");
+
+        // ============================================
+        // チャート描画関数
+        // ============================================
+        // リサイズのたびに呼び出される
+
+        function drawDynamicChart() {
+            // 既存のSVGを削除（完全な再描画）
+            chartContainer.selectAll("svg").remove();
+
+            // ============================================
+            // コンテナサイズの取得と計算
+            // ============================================
+            // node(): D3選択からDOM要素を取得
+            const containerWidth = chartContainer.node().getBoundingClientRect().width;
+            // 高さは幅の50%、最大350pxに制限
+            const containerHeight = Math.min(350, containerWidth * 0.5);
+
+            // ============================================
+            // レスポンシブなマージン設定
+            // ============================================
+            // 画面幅が500px未満の場合、マージンを小さくする
+            const margin2 = {
+                top: 30,
+                right: 20,
+                bottom: 40,
+                left: containerWidth < 500 ? 40 : 50  // 条件付きマージン
+            };
+            const width2 = containerWidth - margin2.left - margin2.right;
+            const height2 = containerHeight - margin2.top - margin2.bottom;
+
+            // SVGコンテナを作成（実際のピクセルサイズで）
+            const svg2 = chartContainer.append("svg")
+                .attr("width", containerWidth)  // 実サイズを指定（viewBoxなし）
+                .attr("height", containerHeight)
+                .append("g")
+                .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+            // スケール設定（現在のサイズに基づく）
+            const x2 = d3.scaleBand()
+                .domain(data2.map(d => d.category))
+                .range([0, width2])
+                .padding(0.3);
+
+            const y2 = d3.scaleLinear()
+                .domain([0, 100])
+                .range([height2, 0]);
+
+            // グリッド
+            svg2.append("g")
+                .attr("class", "grid")
+                .call(d3.axisLeft(y2).tickSize(-width2).tickFormat(""));
+
+            // 棒グラフの描画
+            svg2.selectAll(".bar")
+                .data(data2)
+                .enter()
+                .append("rect")
+                .attr("x", d => x2(d.category))
+                .attr("y", d => y2(d.value))
+                .attr("width", x2.bandwidth())
+                .attr("height", d => height2 - y2(d.value))
+                // schemeCategory10: D3の10色カラースケール
+                // i: データのインデックス（0, 1, 2, ...）
+                .attr("fill", (d, i) => d3.schemeCategory10[i])
+                .attr("rx", 3);
+
+            // ============================================
+            // レスポンシブな要素の表示制御
+            // ============================================
+            // 値ラベル（十分な幅がある場合のみ表示）
+            // 狭い画面ではラベルが重なるため非表示
+            if (containerWidth > 400) {
+                svg2.selectAll(".label")
+                    .data(data2)
+                    .enter()
+                    .append("text")
+                    .attr("x", d => x2(d.category) + x2.bandwidth() / 2)
+                    .attr("y", d => y2(d.value) - 5)
+                    .attr("text-anchor", "middle")
+                    // フォントサイズも画面幅に応じて調整
+                    .attr("font-size", containerWidth < 600 ? "10px" : "12px")
+                    .text(d => d.value);
+            }
+
+            // ============================================
+            // 軸の描画（レスポンシブ設定）
+            // ============================================
+
+            // X軸
+            svg2.append("g")
+                .attr("transform", `translate(0,${height2})`)
+                .call(d3.axisBottom(x2))
+                .selectAll("text")
+                // 画面幅に応じてフォントサイズを調整
+                .attr("font-size", containerWidth < 500 ? "10px" : "12px");
+
+            // Y軸
+            svg2.append("g")
+                // ticks(): 目盛りの数を指定（狭い画面では少なく）
+                .call(d3.axisLeft(y2).ticks(containerWidth < 400 ? 5 : 10))
+                .selectAll("text")
+                .attr("font-size", containerWidth < 500 ? "10px" : "12px");
+
+            // タイトル（レスポンシブなフォントサイズ）
+            svg2.append("text")
+                .attr("x", width2 / 2)
+                .attr("y", -10)
+                .attr("text-anchor", "middle")
+                .attr("font-size", containerWidth < 500 ? "14px" : "16px")
+                .attr("font-weight", "bold")
+                .text("カテゴリ別データ（動的リサイズ）");
+
+            // 現在のサイズを表示
+            svg2.append("text")
+                .attr("x", width2)
+                .attr("y", height2 + 35)
+                .attr("text-anchor", "end")
+                .attr("font-size", "11px")
+                .attr("fill", "#999")
+                .text(`${Math.round(containerWidth)} x ${Math.round(containerHeight)}px`);
+        }
+
+        // 初期描画を実行
+        drawDynamicChart();
+
+        // ============================================
+        // リサイズイベントの設定（デバウンス付き）
+        // ============================================
+        // デバウンス: 連続したイベントを間引いて最後の1回だけ実行
+        // リサイズ中に何度も再描画されるのを防ぐ
+
+        let resizeTimeout;  // タイムアウトIDを保持
+        window.addEventListener("resize", () => {
+            clearTimeout(resizeTimeout);  // 前のタイマーをキャンセル
+            // 150ms後に再描画を実行（リサイズが止まってから描画）
+            resizeTimeout = setTimeout(drawDynamicChart, 150);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>11 - 散布図</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .grid line {
+            stroke: #e0e0e0;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+        .legend-item {
+            cursor: pointer;
+        }
+        .legend-item:hover rect {
+            stroke: #333;
+            stroke-width: 2;
+        }
+    </style>
+</head>
+<body>
+    <h1>11 - 散布図</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> 散布図の作成、ツールチップ、色とサイズによるデータエンコーディング</p>
+    </div>
+
+    <div class="chart-container">
+        <div id="scatter-plot"></div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 散布図（Scatter Plot）とは：
+        // 2つの連続変数の関係性を可視化するグラフです。
+        // X軸とY軸にそれぞれ異なる変数を配置し、データポイントを点で表示します。
+        // 色やサイズで追加のディメンション（次元）を表現できます。
+        // ============================================
+
+        // ============================================
+        // データ生成（身長・体重・年齢・性別）
+        // ============================================
+        const data = [];
+        const categories = ["男性", "女性"];
+
+        // ランダムデータを50個生成
+        // 男性と女性でそれぞれ異なる範囲の身長・体重を設定
+        for (let i = 0; i < 50; i++) {
+            const isMale = Math.random() > 0.5;  // 50%の確率で男性
+            data.push({
+                height: isMale ? 165 + Math.random() * 20 : 150 + Math.random() * 18,  // 身長(cm)
+                weight: isMale ? 60 + Math.random() * 30 : 45 + Math.random() * 25,    // 体重(kg)
+                age: 20 + Math.floor(Math.random() * 40),                               // 年齢(20-60歳)
+                category: isMale ? "男性" : "女性"                                        // カテゴリ
+            });
+        }
+
+        // ============================================
+        // SVGキャンバスのサイズ設定
+        // ============================================
+        // margin: グラフの周囲の余白（軸やラベル用のスペース）
+        const margin = {top: 40, right: 150, bottom: 60, left: 70};
+        // width/height: グラフ本体の描画領域のサイズ（余白を除いた部分）
+        const width = 800 - margin.left - margin.right;
+        const height = 500 - margin.top - margin.bottom;
+
+        // SVG要素を作成してHTMLに追加
+        const svg = d3.select("#scatter-plot")  // コンテナ要素を選択
+            .append("svg")                      // SVG要素を追加
+            .attr("width", width + margin.left + margin.right)   // 全体の幅（余白込み）
+            .attr("height", height + margin.top + margin.bottom) // 全体の高さ（余白込み）
+            .append("g")                        // グループ要素を追加（変換用）
+            .attr("transform", `translate(${margin.left},${margin.top})`);  // 左上の余白分だけ移動
+
+        // ============================================
+        // スケール（データ値 → 画面座標への変換関数）
+        // ============================================
+
+        // X軸スケール: 身長(cm) → X座標(px)
+        // scaleLinear(): 連続的な数値を線形変換するスケール
+        const xScale = d3.scaleLinear()
+            .domain([d3.min(data, d => d.height) - 5, d3.max(data, d => d.height) + 5])  // 入力範囲（データの最小値-5 〜 最大値+5）
+            .range([0, width]);  // 出力範囲（画面の0 〜 width）
+
+        // Y軸スケール: 体重(kg) → Y座標(px)
+        // SVGでは上が0なので、rangeは[height, 0]と逆順にする
+        const yScale = d3.scaleLinear()
+            .domain([d3.min(data, d => d.weight) - 5, d3.max(data, d => d.weight) + 5])  // 入力範囲
+            .range([height, 0]);  // 出力範囲（逆順で下から上へ）
+
+        // サイズスケール: 年齢 → 円の半径(px)
+        // scaleSqrt(): 平方根スケール（面積を比例させるため）
+        const sizeScale = d3.scaleSqrt()
+            .domain([20, 60])    // 入力範囲（年齢20-60歳）
+            .range([5, 15]);     // 出力範囲（半径5-15px）
+
+        // 色スケール: カテゴリ → 色
+        // scaleOrdinal(): 離散的な値（カテゴリ）を色に変換
+        const colorScale = d3.scaleOrdinal()
+            .domain(categories)              // 入力範囲（["男性", "女性"]）
+            .range(["#3498db", "#e74c3c"]);  // 出力範囲（青、赤）
+
+        // ============================================
+        // グリッド線（背景の補助線）
+        // ============================================
+        // X軸グリッド（縦線）
+        svg.append("g")
+            .attr("class", "grid")
+            .attr("transform", `translate(0,${height})`)  // グラフの下端に配置
+            .call(d3.axisBottom(xScale)      // X軸を作成
+                .tickSize(-height)           // 目盛り線を上方向にheight分伸ばす（グリッド線になる）
+                .tickFormat(""));            // 目盛りラベルは非表示
+
+        // Y軸グリッド（横線）
+        svg.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(yScale)        // Y軸を作成
+                .tickSize(-width)            // 目盛り線を右方向にwidth分伸ばす
+                .tickFormat(""));            // 目盛りラベルは非表示
+
+        // ============================================
+        // 軸の作成
+        // ============================================
+        // X軸（下側）
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)  // グラフの下端に配置
+            .call(d3.axisBottom(xScale))                  // X軸を描画
+            .append("text")                               // 軸ラベルを追加
+            .attr("x", width / 2)                         // 中央に配置
+            .attr("y", 45)                                // 下方向に45px
+            .attr("fill", "#333")
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .text("身長 (cm)");
+
+        // Y軸（左側）
+        svg.append("g")
+            .call(d3.axisLeft(yScale))                    // Y軸を描画
+            .append("text")                               // 軸ラベルを追加
+            .attr("transform", "rotate(-90)")             // 90度回転（縦書き）
+            .attr("x", -height / 2)                       // 回転後のX（元のY軸方向）
+            .attr("y", -50)                               // 回転後のY（元のX軸方向、左へ50px）
+            .attr("fill", "#333")
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .text("体重 (kg)");
+
+        // ============================================
+        // ツールチップ（マウスオーバー時の情報表示）
+        // ============================================
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // データポイント（散布図の円）の描画
+        // ============================================
+        svg.selectAll(".dot")                     // まだ存在しない .dot 要素を選択
+            .data(data)                           // データ配列をバインド
+            .enter()                              // データ数分の「入り口」を取得
+            .append("circle")                     // 各データに対して circle 要素を追加
+            .attr("class", "dot")
+            .attr("cx", d => xScale(d.height))    // d: データオブジェクト → X座標を計算
+            .attr("cy", d => yScale(d.weight))    // Y座標を計算
+            .attr("r", d => sizeScale(d.age))     // 円の半径を年齢から計算
+            .attr("fill", d => colorScale(d.category))  // 色をカテゴリから決定
+            .attr("opacity", 0.7)                 // 半透明に設定
+            .attr("stroke", "white")              // 白い枠線
+            .attr("stroke-width", 1)
+            .style("cursor", "pointer")           // マウスカーソルをポインタに
+            .on("mouseenter", function(event, d) {
+                // マウスオーバー時の処理
+                // this: イベントが発生したDOM要素（円）
+                // event: マウスイベントオブジェクト
+                // d: この円にバインドされているデータ
+                d3.select(this)
+                    .transition()                 // アニメーション開始
+                    .duration(200)                // 200msかけて変化
+                    .attr("opacity", 1)           // 完全不透明に
+                    .attr("stroke-width", 2);     // 枠線を太く
+
+                // ツールチップを表示
+                tooltip.style("opacity", 1)
+                    .html(`
+                        <strong>${d.category}</strong><br>
+                        身長: ${d.height.toFixed(1)} cm<br>
+                        体重: ${d.weight.toFixed(1)} kg<br>
+                        年齢: ${d.age} 歳
+                    `)
+                    .style("left", (event.pageX + 15) + "px")   // マウス位置から右に15px
+                    .style("top", (event.pageY - 20) + "px");   // マウス位置から上に20px
+            })
+            .on("mouseleave", function() {
+                // マウスが離れた時の処理
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr("opacity", 0.7)         // 元の透明度に戻す
+                    .attr("stroke-width", 1);     // 枠線を元の太さに
+
+                tooltip.style("opacity", 0);      // ツールチップを非表示
+            });
+
+        // ============================================
+        // タイトル
+        // ============================================
+        svg.append("text")
+            .attr("x", width / 2)
+            .attr("y", -15)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "18px")
+            .attr("font-weight", "bold")
+            .text("身長と体重の関係（円のサイズ = 年齢）");
+
+        // ============================================
+        // 凡例（色の説明）
+        // ============================================
+        const legend = svg.append("g")
+            .attr("transform", `translate(${width + 20}, 30)`);  // グラフの右側に配置
+
+        legend.append("text")
+            .attr("font-weight", "bold")
+            .attr("font-size", "14px")
+            .text("カテゴリ");
+
+        // 各カテゴリの凡例項目を作成
+        // forEach((値, インデックス) => { ... })
+        categories.forEach((cat, i) => {
+            const g = legend.append("g")
+                .attr("class", "legend-item")
+                .attr("transform", `translate(0, ${i * 30 + 20})`)  // i番目の位置に配置
+                .style("cursor", "pointer")
+                .on("click", function() {
+                    // クリック時の表示/非表示切り替え
+                    const isActive = d3.select(this).classed("inactive");  // 現在の状態を取得
+                    d3.select(this).classed("inactive", !isActive);        // 状態を反転
+
+                    // 該当カテゴリのすべての点の透明度を変更
+                    svg.selectAll(".dot")
+                        .filter(d => d.category === cat)  // このカテゴリのデータのみ抽出
+                        .transition()
+                        .duration(300)
+                        .attr("opacity", isActive ? 0.7 : 0.1);  // 表示/薄く表示を切り替え
+                });
+
+            // 凡例の円
+            g.append("circle")
+                .attr("r", 8)
+                .attr("fill", colorScale(cat));
+
+            // 凡例のラベル
+            g.append("text")
+                .attr("x", 20)
+                .attr("y", 5)
+                .attr("font-size", "13px")
+                .text(cat);
+        });
+
+        // ============================================
+        // サイズ凡例（年齢の説明）
+        // ============================================
+        const sizeLegend = svg.append("g")
+            .attr("transform", `translate(${width + 20}, 130)`);
+
+        sizeLegend.append("text")
+            .attr("font-weight", "bold")
+            .attr("font-size", "14px")
+            .text("年齢");
+
+        // 代表的な年齢（25, 40, 55歳）の円を表示
+        [25, 40, 55].forEach((age, i) => {
+            const g = sizeLegend.append("g")
+                .attr("transform", `translate(15, ${i * 40 + 35})`);
+
+            g.append("circle")
+                .attr("r", sizeScale(age))    // 年齢に応じたサイズ
+                .attr("fill", "#999")
+                .attr("opacity", 0.5);
+
+            g.append("text")
+                .attr("x", 25)
+                .attr("y", 5)
+                .attr("font-size", "12px")
+                .text(`${age}歳`);
+        });
+    </script>
+</body>
+</html>

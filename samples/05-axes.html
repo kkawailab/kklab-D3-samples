@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>05 - 軸（Axes）</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .axis path,
+        .axis line {
+            stroke: #333;
+        }
+        .axis text {
+            font-size: 12px;
+        }
+        .grid line {
+            stroke: #ddd;
+            stroke-opacity: 0.7;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>05 - 軸（Axes）</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsで軸を作成・カスタマイズする方法 - axisBottom, axisLeft, axisRight, axisTop</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>基本的な軸の種類</h2>
+        <div id="chart1"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>カスタマイズされた軸（グリッド線付き）</h2>
+        <div id="chart2"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>時間軸</h2>
+        <div id="chart3"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 軸（Axes）とは？
+        // ============================================
+        // 軸はチャートの目盛りとラベルを自動生成する機能です
+        // スケールを渡すと、適切な目盛り線とラベルが作成されます
+        //
+        // 4種類の軸:
+        // - axisBottom: 下向きの目盛り（X軸に使用）
+        // - axisTop: 上向きの目盛り
+        // - axisLeft: 左向きの目盛り（Y軸に使用）
+        // - axisRight: 右向きの目盛り
+
+        // ============================================
+        // チャート1: 基本的な4種類の軸
+        // ============================================
+
+        // マージン（余白）パターン
+        // グラフ本体の周りに余白を確保する一般的な手法です
+        // これにより軸やラベルのスペースを確保します
+        const margin1 = {top: 40, right: 60, bottom: 50, left: 60};
+        const width1 = 600 - margin1.left - margin1.right;   // 実際のグラフ幅
+        const height1 = 250 - margin1.top - margin1.bottom;  // 実際のグラフ高さ
+
+        // SVGを作成し、グループ要素をマージン分移動
+        const svg1 = d3.select("#chart1")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")  // グループ要素を追加
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);  // 左上をマージン分移動
+
+        // スケールを作成
+        const xScale1 = d3.scaleLinear().domain([0, 100]).range([0, width1]);
+        // Y軸のスケールは range を反転 [height, 0] にする
+        // これにより、データ値が大きいほど上に表示される（SVGは上が0）
+        const yScale1 = d3.scaleLinear().domain([0, 100]).range([height1, 0]);
+
+        // ============================================
+        // 下軸 (axisBottom) - 最もよく使うX軸
+        // ============================================
+        // g要素を作成し、call()で軸を描画
+        // call()は選択した要素に対して関数を実行するメソッド
+        svg1.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height1})`)  // グラフの下端に移動
+            .call(d3.axisBottom(xScale1));  // スケールを渡して軸を生成
+
+        svg1.append("text")
+            .attr("x", width1 / 2)
+            .attr("y", height1 + 40)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text("axisBottom（下軸）");
+
+        // ============================================
+        // 左軸 (axisLeft) - 最もよく使うY軸
+        // ============================================
+        svg1.append("g")
+            .attr("class", "axis")
+            .call(d3.axisLeft(yScale1));  // 位置は(0,0)のまま
+
+        svg1.append("text")
+            .attr("transform", "rotate(-90)")  // テキストを90度回転
+            .attr("x", -height1 / 2)
+            .attr("y", -45)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text("axisLeft（左軸）");
+
+        // ============================================
+        // 上軸 (axisTop)
+        // ============================================
+        svg1.append("g")
+            .attr("class", "axis")
+            .call(d3.axisTop(xScale1));  // 位置は(0,0)のまま
+
+        svg1.append("text")
+            .attr("x", width1 / 2)
+            .attr("y", -25)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text("axisTop（上軸）");
+
+        // ============================================
+        // 右軸 (axisRight)
+        // ============================================
+        svg1.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(${width1},0)`)  // グラフの右端に移動
+            .call(d3.axisRight(yScale1));
+
+        svg1.append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -height1 / 2)
+            .attr("y", width1 + 50)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text("axisRight（右軸）");
+
+        // ============================================
+        // チャート2: カスタマイズされた軸
+        // ============================================
+        const margin2 = {top: 30, right: 30, bottom: 50, left: 60};
+        const width2 = 600 - margin2.left - margin2.right;
+        const height2 = 300 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#chart2")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        const xScale2 = d3.scaleLinear().domain([0, 10]).range([0, width2]);
+        const yScale2 = d3.scaleLinear().domain([0, 100]).range([height2, 0]);
+
+        // ============================================
+        // グリッド線の描画
+        // ============================================
+        // グリッド線は軸を応用して作成します
+        // tickSize で目盛り線の長さをグラフ全体に伸ばし、
+        // tickFormat("") でラベルを非表示にします
+
+        // 縦のグリッド線（X軸の目盛りを上に伸ばす）
+        svg2.append("g")
+            .attr("class", "grid")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(xScale2)
+                .tickSize(-height2)  // マイナスで上向きに伸びる
+                .tickFormat("")      // ラベルは表示しない
+            );
+
+        // 横のグリッド線（Y軸の目盛りを右に伸ばす）
+        svg2.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(yScale2)
+                .tickSize(-width2)   // マイナスで右向きに伸びる
+                .tickFormat("")
+            );
+
+        // ============================================
+        // 軸のカスタマイズ
+        // ============================================
+        // ticks(): 目盛りの数を指定
+        // tickFormat(): ラベルの表示形式を指定（関数で自由にカスタマイズ可能）
+
+        // X軸（カスタマイズ）
+        svg2.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(xScale2)
+                .ticks(10)                    // 目盛りを10個
+                .tickFormat(d => `${d}km`)    // 値の後に"km"を付ける
+            );
+
+        // 軸ラベル（軸の説明テキスト）
+        svg2.append("text")
+            .attr("x", width2 / 2)
+            .attr("y", height2 + 40)
+            .attr("text-anchor", "middle")
+            .attr("font-weight", "bold")
+            .text("距離");
+
+        // Y軸（カスタマイズ）
+        svg2.append("g")
+            .attr("class", "axis")
+            .call(d3.axisLeft(yScale2)
+                .ticks(5)                     // 目盛りを5個
+                .tickFormat(d => `${d}%`)     // 値の後に"%"を付ける
+            );
+
+        svg2.append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -height2 / 2)
+            .attr("y", -45)
+            .attr("text-anchor", "middle")
+            .attr("font-weight", "bold")
+            .text("進捗率");
+
+        // サンプルデータのプロット
+        const sampleData = [[1, 15], [2, 30], [4, 45], [6, 60], [8, 85], [10, 100]];
+        svg2.selectAll("circle")
+            .data(sampleData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => xScale2(d[0]))  // X値をスケールで変換
+            .attr("cy", d => yScale2(d[1]))  // Y値をスケールで変換
+            .attr("r", 6)
+            .attr("fill", "#e74c3c");
+
+        // ============================================
+        // チャート3: 時間軸
+        // ============================================
+        // 時間データを扱う場合は scaleTime と timeFormat を使用します
+
+        const margin3 = {top: 30, right: 30, bottom: 50, left: 60};
+        const width3 = 600 - margin3.left - margin3.right;
+        const height3 = 200 - margin3.top - margin3.bottom;
+
+        const svg3 = d3.select("#chart3")
+            .append("svg")
+            .attr("width", width3 + margin3.left + margin3.right)
+            .attr("height", height3 + margin3.top + margin3.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin3.left},${margin3.top})`);
+
+        // 時間データ（Dateオブジェクトを使用）
+        // new Date(年, 月, 日) - 月は0始まり（0=1月, 11=12月）
+        const timeData = [
+            {date: new Date(2024, 0, 1), value: 30},   // 2024年1月
+            {date: new Date(2024, 2, 1), value: 45},   // 2024年3月
+            {date: new Date(2024, 4, 1), value: 60},   // 2024年5月
+            {date: new Date(2024, 6, 1), value: 55},   // 2024年7月
+            {date: new Date(2024, 8, 1), value: 75},   // 2024年9月
+            {date: new Date(2024, 10, 1), value: 90}   // 2024年11月
+        ];
+
+        // scaleTime() は時間データ用のスケール
+        // d3.extent() はデータの最小値と最大値を取得
+        const xScale3 = d3.scaleTime()
+            .domain(d3.extent(timeData, d => d.date))  // 日付の範囲
+            .range([0, width3]);
+
+        const yScale3 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([height3, 0]);
+
+        // 時間軸のカスタマイズ
+        // ticks(): d3.timeMonth.every(2) で2ヶ月ごとの目盛り
+        // tickFormat(): d3.timeFormat() で日付の表示形式を指定
+        svg3.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height3})`)
+            .call(d3.axisBottom(xScale3)
+                .ticks(d3.timeMonth.every(2))           // 2ヶ月ごと
+                .tickFormat(d3.timeFormat("%Y年%m月"))   // 日付フォーマット
+            );
+
+        svg3.append("g")
+            .attr("class", "axis")
+            .call(d3.axisLeft(yScale3));
+
+        // 折れ線を描画
+        // d3.line() は座標の配列からSVGパスを生成するジェネレータ
+        const line = d3.line()
+            .x(d => xScale3(d.date))   // X座標の計算方法
+            .y(d => yScale3(d.value)); // Y座標の計算方法
+
+        svg3.append("path")
+            .datum(timeData)           // 単一のパスにはdatum()を使用
+            .attr("fill", "none")
+            .attr("stroke", "#4a90d9")
+            .attr("stroke-width", 2)
+            .attr("d", line);          // パスデータを設定
+
+        // データ点を描画
+        svg3.selectAll("circle")
+            .data(timeData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => xScale3(d.date))
+            .attr("cy", d => yScale3(d.value))
+            .attr("r", 5)
+            .attr("fill", "#4a90d9");
+    </script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>08 - 基本的な円グラフ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .slice:hover {
+            opacity: 0.8;
+            cursor: pointer;
+        }
+        .charts-row {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .chart-item {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>08 - 基本的な円グラフ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsで円グラフを作成する方法 - d3.pie(), d3.arc(), ラベル配置</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>基本的な円グラフ（市場シェア）</h2>
+        <div id="basic-pie"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>ラベル付き円グラフ</h2>
+        <div id="labeled-pie"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 円グラフ（Pie Chart）とは？
+        // ============================================
+        // 円グラフは、全体に対する各部分の割合を視覚化するチャートです
+        // D3.jsでは以下の2つのジェネレータを組み合わせて作成します：
+        //
+        // 1. d3.pie() - データを円グラフ用の角度データに変換
+        //    - startAngle, endAngle を計算
+        //
+        // 2. d3.arc() - 角度データからSVGパスを生成
+        //    - innerRadius, outerRadius で形状を決定
+
+        // ============================================
+        // 1. 基本的な円グラフ
+        // ============================================
+
+        // サンプルデータ：スマートフォン市場シェア
+        const marketData = [
+            {name: "Apple", value: 27.6},
+            {name: "Samsung", value: 20.1},
+            {name: "Xiaomi", value: 14.1},
+            {name: "Oppo", value: 10.5},
+            {name: "Vivo", value: 8.2},
+            {name: "Others", value: 19.5}
+        ];
+
+        const width1 = 600;
+        const height1 = 400;
+        // 半径は幅と高さの小さい方の半分から余白を引いた値
+        const radius1 = Math.min(width1, height1) / 2 - 60;
+
+        // 円グラフはSVGの中央に配置するため、transform で移動
+        const svg1 = d3.select("#basic-pie")
+            .append("svg")
+            .attr("width", width1)
+            .attr("height", height1)
+            .append("g")
+            .attr("transform", `translate(${width1/2}, ${height1/2})`);  // 中央に移動
+
+        // カラースケール
+        const color1 = d3.scaleOrdinal()
+            .domain(marketData.map(d => d.name))
+            .range(d3.schemeTableau10);
+
+        // ============================================
+        // パイ生成器（Pie Generator）
+        // ============================================
+        // d3.pie() はデータを円グラフ用の角度データに変換します
+        // 各データに startAngle と endAngle が追加されます
+
+        const pie1 = d3.pie()
+            .value(d => d.value)  // 値を取得するアクセサ関数
+            .sort(null);          // null = ソートしない（データ順を維持）
+
+        // ============================================
+        // アーク生成器（Arc Generator）
+        // ============================================
+        // d3.arc() は角度データからSVGパス文字列を生成します
+
+        const arc1 = d3.arc()
+            .innerRadius(0)       // 内側の半径（0 = 完全な円グラフ）
+            .outerRadius(radius1);  // 外側の半径
+
+        // ラベル配置用のアーク（スライスの中心に配置するため）
+        const labelArc1 = d3.arc()
+            .innerRadius(radius1 * 0.6)  // 半径の60%の位置
+            .outerRadius(radius1 * 0.6);
+
+        // ============================================
+        // スライス（扇形）の描画
+        // ============================================
+
+        // pie1(marketData) でデータを角度データに変換
+        const slices = svg1.selectAll(".slice")
+            .data(pie1(marketData))  // パイ生成器でデータを変換
+            .enter()
+            .append("g")
+            .attr("class", "slice");
+
+        // 各スライスのパスを描画
+        slices.append("path")
+            .attr("d", arc1)                        // アーク生成器でパスを生成
+            .attr("fill", d => color1(d.data.name)) // d.data で元のデータにアクセス
+            .attr("stroke", "white")                // スライス間の境界線
+            .attr("stroke-width", 2);
+
+        // パーセントラベル（スライスの中心に配置）
+        // labelArc1.centroid(d) はアークの中心点の座標を返す
+        slices.append("text")
+            .attr("transform", d => `translate(${labelArc1.centroid(d)})`)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .attr("font-weight", "bold")
+            .attr("fill", "white")
+            .text(d => d.data.value + "%");
+
+        // ============================================
+        // 凡例（Legend）
+        // ============================================
+
+        const legend1 = svg1.append("g")
+            .attr("transform", `translate(${radius1 + 30}, ${-radius1 + 20})`);
+
+        marketData.forEach((d, i) => {
+            const g = legend1.append("g")
+                .attr("transform", `translate(0, ${i * 25})`);
+
+            // 凡例の色見本（四角形）
+            g.append("rect")
+                .attr("width", 18)
+                .attr("height", 18)
+                .attr("fill", color1(d.name))
+                .attr("rx", 3);
+
+            // 凡例のテキスト
+            g.append("text")
+                .attr("x", 25)
+                .attr("y", 14)
+                .attr("font-size", "13px")
+                .text(`${d.name} (${d.value}%)`);
+        });
+
+        // タイトル
+        svg1.append("text")
+            .attr("y", -radius1 - 20)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "16px")
+            .attr("font-weight", "bold")
+            .text("スマートフォン市場シェア 2024");
+
+        // ============================================
+        // 2. 引き出し線付きラベルの円グラフ
+        // ============================================
+        // スライスが小さい場合、ラベルを外側に配置して
+        // 引き出し線（polyline）で接続すると読みやすくなります
+
+        const expenseData = [
+            {category: "食費", amount: 80000},
+            {category: "住居費", amount: 120000},
+            {category: "交通費", amount: 25000},
+            {category: "通信費", amount: 15000},
+            {category: "娯楽費", amount: 30000},
+            {category: "貯蓄", amount: 50000},
+            {category: "その他", amount: 30000}
+        ];
+
+        const width2 = 700;
+        const height2 = 450;
+        const radius2 = 150;
+
+        const svg2 = d3.select("#labeled-pie")
+            .append("svg")
+            .attr("width", width2)
+            .attr("height", height2)
+            .append("g")
+            .attr("transform", `translate(${width2/2}, ${height2/2})`);
+
+        const color2 = d3.scaleOrdinal()
+            .domain(expenseData.map(d => d.category))
+            .range(["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7", "#dfe6e9", "#a29bfe"]);
+
+        const pie2 = d3.pie()
+            .value(d => d.amount)
+            .sort(null)
+            .padAngle(0.02);
+
+        const arc2 = d3.arc()
+            .innerRadius(0)
+            .outerRadius(radius2);
+
+        const outerArc = d3.arc()
+            .innerRadius(radius2 * 1.1)
+            .outerRadius(radius2 * 1.1);
+
+        const total = d3.sum(expenseData, d => d.amount);
+
+        // スライス
+        svg2.selectAll(".slice")
+            .data(pie2(expenseData))
+            .enter()
+            .append("path")
+            .attr("class", "slice")
+            .attr("d", arc2)
+            .attr("fill", d => color2(d.data.category))
+            .attr("stroke", "white")
+            .attr("stroke-width", 2);
+
+        // 引き出し線とラベル
+        svg2.selectAll(".polyline")
+            .data(pie2(expenseData))
+            .enter()
+            .append("polyline")
+            .attr("fill", "none")
+            .attr("stroke", "#666")
+            .attr("stroke-width", 1)
+            .attr("points", d => {
+                const posA = arc2.centroid(d);
+                const posB = outerArc.centroid(d);
+                const posC = outerArc.centroid(d);
+                const midangle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+                posC[0] = radius2 * 1.25 * (midangle < Math.PI ? 1 : -1);
+                return [posA, posB, posC];
+            });
+
+        svg2.selectAll(".label")
+            .data(pie2(expenseData))
+            .enter()
+            .append("text")
+            .attr("class", "label")
+            .attr("transform", d => {
+                const pos = outerArc.centroid(d);
+                const midangle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+                pos[0] = radius2 * 1.3 * (midangle < Math.PI ? 1 : -1);
+                return `translate(${pos})`;
+            })
+            .attr("text-anchor", d => {
+                const midangle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+                return midangle < Math.PI ? "start" : "end";
+            })
+            .attr("font-size", "12px")
+            .html(d => {
+                const percent = ((d.data.amount / total) * 100).toFixed(1);
+                return `<tspan font-weight="bold">${d.data.category}</tspan>
+                        <tspan x="0" dy="1.2em">¥${d.data.amount.toLocaleString()} (${percent}%)</tspan>`;
+            });
+
+        // 中央テキスト
+        svg2.append("text")
+            .attr("text-anchor", "middle")
+            .attr("y", -10)
+            .attr("font-size", "14px")
+            .attr("fill", "#666")
+            .text("月間支出合計");
+
+        svg2.append("text")
+            .attr("text-anchor", "middle")
+            .attr("y", 15)
+            .attr("font-size", "20px")
+            .attr("font-weight", "bold")
+            .text(`¥${total.toLocaleString()}`);
+    </script>
+</body>
+</html>

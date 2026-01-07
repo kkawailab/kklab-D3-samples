@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>06 - 基本的な棒グラフ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .bar:hover {
+            opacity: 0.8;
+        }
+        .axis-label {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>06 - 基本的な棒グラフ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsで縦棒グラフと横棒グラフを作成する方法</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>縦棒グラフ（売上データ）</h2>
+        <div id="vertical-chart"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>横棒グラフ（人口データ）</h2>
+        <div id="horizontal-chart"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 棒グラフとは？
+        // ============================================
+        // 棒グラフは、カテゴリデータの比較に最適なチャートです
+        // D3.jsでは主に以下の要素を組み合わせて作成します：
+        // - scaleBand: カテゴリを等間隔に配置
+        // - scaleLinear: 値を高さ/幅に変換
+        // - rect要素: 棒を描画
+
+        // ============================================
+        // 1. 縦棒グラフ（Vertical Bar Chart）
+        // ============================================
+        // 時系列データや月次データの表示に適しています
+
+        // サンプルデータ：月間売上データ
+        const salesData = [
+            {month: "1月", sales: 120},
+            {month: "2月", sales: 150},
+            {month: "3月", sales: 180},
+            {month: "4月", sales: 140},
+            {month: "5月", sales: 200},
+            {month: "6月", sales: 170},
+            {month: "7月", sales: 220},
+            {month: "8月", sales: 190},
+            {month: "9月", sales: 160},
+            {month: "10月", sales: 175},
+            {month: "11月", sales: 210},
+            {month: "12月", sales: 250}
+        ];
+
+        // マージン設定（グラフの余白）
+        // bottom は軸ラベルのスペースのため大きめに
+        const margin1 = {top: 30, right: 30, bottom: 60, left: 60};
+        const width1 = 700 - margin1.left - margin1.right;
+        const height1 = 350 - margin1.top - margin1.bottom;
+
+        // SVGを作成し、グループ要素をマージン分移動
+        const svg1 = d3.select("#vertical-chart")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // ============================================
+        // スケールの設定
+        // ============================================
+
+        // X軸: scaleBand（バンドスケール）
+        // カテゴリデータを等間隔のバンドに配置
+        const x1 = d3.scaleBand()
+            .domain(salesData.map(d => d.month))  // 月名の配列
+            .range([0, width1])                    // 描画範囲
+            .padding(0.2);                         // バンド間の余白（0〜1）
+
+        // Y軸: scaleLinear（線形スケール）
+        // 売上値を高さに変換
+        // domain の上限に1.1を掛けて、グラフ上部に余白を確保
+        const y1 = d3.scaleLinear()
+            .domain([0, d3.max(salesData, d => d.sales) * 1.1])  // 最大値の110%まで
+            .range([height1, 0]);  // SVGは上が0なので反転
+
+        // 色スケール: scaleSequential（連続スケール）
+        // 値が大きいほど濃い青色になる
+        const colorScale1 = d3.scaleSequential(d3.interpolateBlues)
+            .domain([0, d3.max(salesData, d => d.sales)]);
+
+        // ============================================
+        // 棒グラフの描画
+        // ============================================
+
+        svg1.selectAll(".bar")
+            .data(salesData)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", d => x1(d.month))           // バンドの開始位置
+            .attr("y", d => y1(d.sales))           // 棒の上端（Y座標）
+            .attr("width", x1.bandwidth())          // バンドの幅
+            .attr("height", d => height1 - y1(d.sales))  // 棒の高さ
+            .attr("fill", d => colorScale1(d.sales))     // 値に応じた色
+            .attr("rx", 3);                         // 角丸
+
+        // 値ラベル（棒の上に数値を表示）
+        svg1.selectAll(".label")
+            .data(salesData)
+            .enter()
+            .append("text")
+            .attr("class", "label")
+            .attr("x", d => x1(d.month) + x1.bandwidth() / 2)  // バンドの中央
+            .attr("y", d => y1(d.sales) - 5)                   // 棒の少し上
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .attr("fill", "#333")
+            .text(d => d.sales);
+
+        // ============================================
+        // 軸の描画
+        // ============================================
+
+        // X軸（下軸）
+        svg1.append("g")
+            .attr("transform", `translate(0,${height1})`)
+            .call(d3.axisBottom(x1))
+            .selectAll("text")
+            .attr("transform", "rotate(-45)")  // ラベルを45度回転
+            .style("text-anchor", "end");      // 右揃え
+
+        // Y軸（左軸）
+        svg1.append("g")
+            .call(d3.axisLeft(y1));
+
+        // 軸ラベル（軸の説明テキスト）
+        svg1.append("text")
+            .attr("class", "axis-label")
+            .attr("x", width1 / 2)
+            .attr("y", height1 + 50)
+            .attr("text-anchor", "middle")
+            .text("月");
+
+        svg1.append("text")
+            .attr("class", "axis-label")
+            .attr("transform", "rotate(-90)")
+            .attr("x", -height1 / 2)
+            .attr("y", -45)
+            .attr("text-anchor", "middle")
+            .text("売上（万円）");
+
+        // ============================================
+        // 2. 横棒グラフ（Horizontal Bar Chart）
+        // ============================================
+        // ランキングや比較データの表示に適しています
+        // 国名などの長いラベルも読みやすく表示できます
+
+        // サンプルデータ：人口データ（降順でソート）
+        const populationData = [
+            {country: "中国", population: 1412},
+            {country: "インド", population: 1408},
+            {country: "アメリカ", population: 332},
+            {country: "インドネシア", population: 276},
+            {country: "パキスタン", population: 229},
+            {country: "ブラジル", population: 214},
+            {country: "ナイジェリア", population: 218},
+            {country: "バングラデシュ", population: 169}
+        ].sort((a, b) => b.population - a.population);  // 人口の多い順にソート
+
+        // 横棒グラフ用のマージン
+        // left は国名ラベルのスペースのため大きめに
+        const margin2 = {top: 30, right: 80, bottom: 40, left: 100};
+        const width2 = 700 - margin2.left - margin2.right;
+        const height2 = 350 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#horizontal-chart")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        // ============================================
+        // 横棒グラフのスケール
+        // ============================================
+        // 縦棒グラフとはX軸とY軸の役割が逆になります
+
+        // X軸: scaleLinear（値 → 棒の幅）
+        const x2 = d3.scaleLinear()
+            .domain([0, d3.max(populationData, d => d.population) * 1.1])
+            .range([0, width2]);  // 横棒なので [0, width]
+
+        // Y軸: scaleBand（カテゴリ → 縦位置）
+        const y2 = d3.scaleBand()
+            .domain(populationData.map(d => d.country))
+            .range([0, height2])
+            .padding(0.2);
+
+        // 色スケール: scaleOrdinal（各棒に異なる色）
+        const colorScale2 = d3.scaleOrdinal(d3.schemeTableau10);
+
+        // ============================================
+        // 横棒グラフの描画
+        // ============================================
+
+        svg2.selectAll(".bar")
+            .data(populationData)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", 0)                           // 横棒は左端から開始
+            .attr("y", d => y2(d.country))          // カテゴリのY位置
+            .attr("width", d => x2(d.population))   // 棒の幅（値に比例）
+            .attr("height", y2.bandwidth())          // バンドの高さ
+            .attr("fill", (d, i) => colorScale2(i)) // インデックスで色を決定
+            .attr("rx", 3);
+
+        // 値ラベル（棒の右端に表示）
+        svg2.selectAll(".label")
+            .data(populationData)
+            .enter()
+            .append("text")
+            .attr("class", "label")
+            .attr("x", d => x2(d.population) + 5)   // 棒の右端 + 5px
+            .attr("y", d => y2(d.country) + y2.bandwidth() / 2)  // バンドの中央
+            .attr("dy", "0.35em")                   // 垂直方向の微調整
+            .attr("font-size", "12px")
+            .attr("fill", "#333")
+            .text(d => `${d.population}百万人`);
+
+        // X軸（下軸）
+        svg2.append("g")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(x2).ticks(5));  // 目盛りを5個に制限
+
+        // Y軸（左軸）- 国名がラベルとして表示される
+        svg2.append("g")
+            .call(d3.axisLeft(y2));
+
+        // 軸ラベル
+        svg2.append("text")
+            .attr("class", "axis-label")
+            .attr("x", width2 / 2)
+            .attr("y", height2 + 35)
+            .attr("text-anchor", "middle")
+            .text("人口（百万人）");
+    </script>
+</body>
+</html>

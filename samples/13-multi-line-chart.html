@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>13 - マルチラインチャート</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .grid line {
+            stroke: #e0e0e0;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+        .line {
+            fill: none;
+            stroke-width: 2.5;
+        }
+        .legend-item {
+            cursor: pointer;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .focus-line {
+            stroke: #999;
+            stroke-width: 1;
+            stroke-dasharray: 3,3;
+        }
+    </style>
+</head>
+<body>
+    <h1>13 - マルチラインチャート</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> 複数系列の折れ線グラフ、凡例による表示切替、垂直線によるホバーインタラクション</p>
+    </div>
+
+    <div class="chart-container">
+        <div id="multi-line"></div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // マルチラインチャート（Multi-line Chart）とは：
+        // 複数の系列（シリーズ）の折れ線グラフを1つのグラフに表示します。
+        // 複数のデータセットの推移を比較するのに適しています。
+        // 凡例クリックによる表示切替やホバー時の垂直線で使いやすくします。
+        // ============================================
+
+        // ============================================
+        // データ：複数都市の月間気温
+        // ============================================
+        const cities = [
+            {
+                name: "東京",
+                color: "#e74c3c",
+                data: [
+                    {month: 0, temp: 5.2}, {month: 1, temp: 6.1}, {month: 2, temp: 9.4},
+                    {month: 3, temp: 14.3}, {month: 4, temp: 18.8}, {month: 5, temp: 21.9},
+                    {month: 6, temp: 25.4}, {month: 7, temp: 27.1}, {month: 8, temp: 23.5},
+                    {month: 9, temp: 17.6}, {month: 10, temp: 12.3}, {month: 11, temp: 7.4}
+                ]
+            },
+            {
+                name: "大阪",
+                color: "#3498db",
+                data: [
+                    {month: 0, temp: 6.0}, {month: 1, temp: 6.5}, {month: 2, temp: 10.0},
+                    {month: 3, temp: 15.5}, {month: 4, temp: 20.0}, {month: 5, temp: 23.5},
+                    {month: 6, temp: 27.0}, {month: 7, temp: 28.5}, {month: 8, temp: 25.0},
+                    {month: 9, temp: 19.0}, {month: 10, temp: 13.5}, {month: 11, temp: 8.0}
+                ]
+            },
+            {
+                name: "札幌",
+                color: "#2ecc71",
+                data: [
+                    {month: 0, temp: -3.6}, {month: 1, temp: -3.1}, {month: 2, temp: 0.6},
+                    {month: 3, temp: 7.1}, {month: 4, temp: 12.4}, {month: 5, temp: 16.7},
+                    {month: 6, temp: 20.5}, {month: 7, temp: 22.3}, {month: 8, temp: 18.1},
+                    {month: 9, temp: 11.8}, {month: 10, temp: 4.9}, {month: 11, temp: -0.9}
+                ]
+            },
+            {
+                name: "那覇",
+                color: "#f39c12",
+                data: [
+                    {month: 0, temp: 17.0}, {month: 1, temp: 17.1}, {month: 2, temp: 18.9},
+                    {month: 3, temp: 21.4}, {month: 4, temp: 24.0}, {month: 5, temp: 26.8},
+                    {month: 6, temp: 28.9}, {month: 7, temp: 28.7}, {month: 8, temp: 27.6},
+                    {month: 9, temp: 25.2}, {month: 10, temp: 22.1}, {month: 11, temp: 18.7}
+                ]
+            }
+        ];
+
+        const months = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+
+        // ============================================
+        // SVGキャンバスのサイズ設定
+        // ============================================
+        const margin = {top: 40, right: 120, bottom: 50, left: 60};
+        const width = 800 - margin.left - margin.right;
+        const height = 450 - margin.top - margin.bottom;
+
+        const svg = d3.select("#multi-line")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // ============================================
+        // スケール
+        // ============================================
+        // X軸スケール（月: 0-11）
+        const xScale = d3.scaleLinear()
+            .domain([0, 11])     // 0-11（12ヶ月）
+            .range([0, width]);
+
+        // Y軸スケール（気温: -10°C〜35°C）
+        const yScale = d3.scaleLinear()
+            .domain([-10, 35])
+            .range([height, 0]);
+
+        // グリッド
+        svg.append("g")
+            .attr("class", "grid")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(xScale).tickSize(-height).tickFormat(""));
+
+        svg.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(yScale).tickSize(-width).tickFormat(""));
+
+        // 0度線
+        svg.append("line")
+            .attr("x1", 0)
+            .attr("x2", width)
+            .attr("y1", yScale(0))
+            .attr("y2", yScale(0))
+            .attr("stroke", "#999")
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "5,5");
+
+        // ============================================
+        // ライン生成器
+        // ============================================
+        const line = d3.line()
+            .x(d => xScale(d.month))     // d: {month, temp}
+            .y(d => yScale(d.temp))
+            .curve(d3.curveMonotoneX);   // 滑らかな曲線補間
+
+        // ============================================
+        // 各都市のラインを描画
+        // ============================================
+        const cityLines = svg.selectAll(".city-line")
+            .data(cities)                // cities配列をバインド
+            .enter()
+            .append("g")
+            .attr("class", "city-line");
+
+        cityLines.append("path")
+            .attr("class", "line")
+            .attr("d", d => line(d.data))    // d: 都市オブジェクト、d.data: その都市の気温データ配列
+            .attr("stroke", d => d.color)    // 都市ごとの色
+            .attr("data-city", d => d.name); // data属性にデータを保存（後で検索用）
+
+        // ============================================
+        // データポイント（各月の点）
+        // ============================================
+        cities.forEach(city => {
+            svg.selectAll(`.dot-${city.name}`)
+                .data(city.data)             // その都市の気温データ
+                .enter()
+                .append("circle")
+                .attr("class", `dot dot-${city.name}`)
+                .attr("cx", d => xScale(d.month))
+                .attr("cy", d => yScale(d.temp))
+                .attr("r", 4)
+                .attr("fill", city.color)
+                .attr("data-city", city.name);
+        });
+
+        // 軸
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(xScale).tickFormat(i => months[i]));
+
+        svg.append("g")
+            .call(d3.axisLeft(yScale).tickFormat(d => d + "°C"));
+
+        // タイトル
+        svg.append("text")
+            .attr("x", width / 2)
+            .attr("y", -15)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "18px")
+            .attr("font-weight", "bold")
+            .text("日本の主要都市 月別平均気温");
+
+        // ============================================
+        // 凡例（クリックで表示/非表示切り替え）
+        // ============================================
+        const legend = svg.append("g")
+            .attr("transform", `translate(${width + 20}, 20)`);
+
+        // 各都市の表示状態を管理するオブジェクト（true: 表示中）
+        const activeStates = {};
+        cities.forEach(city => activeStates[city.name] = true);
+
+        cities.forEach((city, i) => {
+            const g = legend.append("g")
+                .attr("class", "legend-item")
+                .attr("transform", `translate(0, ${i * 28})`)
+                .on("click", function() {
+                    // クリック時に表示状態を反転
+                    activeStates[city.name] = !activeStates[city.name];
+
+                    const opacity = activeStates[city.name] ? 1 : 0.15;
+
+                    // その都市のラインと点の透明度を変更
+                    svg.selectAll(`path[data-city="${city.name}"]`)
+                        .transition()
+                        .duration(300)
+                        .attr("opacity", opacity);
+
+                    svg.selectAll(`circle[data-city="${city.name}"]`)
+                        .transition()
+                        .duration(300)
+                        .attr("opacity", opacity);
+
+                    // 凡例自体の透明度も変更
+                    d3.select(this).select("rect")
+                        .transition()
+                        .duration(300)
+                        .attr("opacity", activeStates[city.name] ? 1 : 0.3);
+                });
+
+            g.append("rect")
+                .attr("width", 20)
+                .attr("height", 3)
+                .attr("y", 8)
+                .attr("fill", city.color)
+                .attr("rx", 1);
+
+            g.append("text")
+                .attr("x", 28)
+                .attr("y", 13)
+                .attr("font-size", "13px")
+                .text(city.name);
+        });
+
+        // ============================================
+        // ホバーインタラクション（垂直線とツールチップ）
+        // ============================================
+        const tooltip = d3.select("#tooltip");
+
+        // フォーカスグループ（マウスオーバー時に表示される要素）
+        const focusGroup = svg.append("g")
+            .attr("class", "focus")
+            .style("display", "none");  // 初期状態は非表示
+
+        // 垂直の点線（マウス位置に追従）
+        focusGroup.append("line")
+            .attr("class", "focus-line")
+            .attr("y1", 0)
+            .attr("y2", height);
+
+        // 各都市のフォーカス円（垂直線上のデータポイント）
+        const focusCircles = focusGroup.selectAll(".focus-circle")
+            .data(cities)
+            .enter()
+            .append("circle")
+            .attr("class", "focus-circle")
+            .attr("r", 6)
+            .attr("fill", d => d.color)
+            .attr("stroke", "white")
+            .attr("stroke-width", 2);
+
+        // 透明なオーバーレイ（マウスイベント検出用）
+        svg.append("rect")
+            .attr("class", "overlay")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("fill", "none")           // 透明
+            .attr("pointer-events", "all")  // マウスイベントを受け取る
+            .on("mouseenter", () => focusGroup.style("display", null))
+            .on("mouseleave", () => {
+                focusGroup.style("display", "none");
+                tooltip.style("opacity", 0);
+            })
+            .on("mousemove", function(event) {
+                // マウス位置を取得
+                const [mx] = d3.pointer(event);
+                // スケールを逆算して月のインデックスを取得
+                const monthIndex = Math.round(xScale.invert(mx));
+                // 範囲内に収める（0-11）
+                const clampedIndex = Math.max(0, Math.min(11, monthIndex));
+                const x = xScale(clampedIndex);
+
+                // 垂直線を移動
+                focusGroup.select(".focus-line")
+                    .attr("x1", x)
+                    .attr("x2", x);
+
+                // フォーカス円を更新
+                focusCircles
+                    .attr("cx", x)
+                    .attr("cy", d => yScale(d.data[clampedIndex].temp))
+                    .attr("opacity", d => activeStates[d.name] ? 1 : 0);  // 非表示の都市は円も非表示
+
+                // ツールチップのHTMLを構築
+                let tooltipHtml = `<strong>${months[clampedIndex]}</strong><br>`;
+                cities.forEach(city => {
+                    if (activeStates[city.name]) {
+                        tooltipHtml += `<span style="color:${city.color}">●</span> ${city.name}: ${city.data[clampedIndex].temp}°C<br>`;
+                    }
+                });
+
+                // ツールチップを表示
+                tooltip
+                    .style("opacity", 1)
+                    .html(tooltipHtml)
+                    .style("left", (event.pageX + 15) + "px")
+                    .style("top", (event.pageY - 20) + "px");
+            });
+    </script>
+</body>
+</html>

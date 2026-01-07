@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>23 - 階層ツリー</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .node circle {
+            cursor: pointer;
+            stroke-width: 2px;
+        }
+        .node text {
+            font-size: 12px;
+        }
+        .link {
+            fill: none;
+            stroke: #ccc;
+            stroke-width: 1.5px;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357abd;
+        }
+    </style>
+</head>
+<body>
+    <h1>23 - 階層ツリー</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.tree()を使った階層構造の可視化、展開/折りたたみ、水平/垂直レイアウト</p>
+        <p>ノードをクリックすると展開/折りたたみができます。</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>組織図（水平ツリー）</h2>
+        <div class="controls">
+            <button onclick="expandAll()">すべて展開</button>
+            <button onclick="collapseAll()">すべて折りたたみ</button>
+        </div>
+        <div id="horizontal-tree"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>垂直ツリー</h2>
+        <div id="vertical-tree"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 階層ツリー（Hierarchy Tree）とは？
+        // ============================================
+        // 階層ツリーは、親子関係を持つ階層構造を視覚的に表現する手法です。
+        // ノード（円）とリンク（線）で構成され、組織図や分類図などに使われます。
+        //
+        // 特徴：
+        // - 階層構造を明確に表現できる
+        // - 水平レイアウトと垂直レイアウトが選べる
+        // - ノードをクリックして展開/折りたたみができる
+        // - アニメーション付きで視覚的に理解しやすい
+        //
+        // このサンプルでは、組織図を水平ツリーと垂直ツリーの2種類で表示します。
+        // ============================================
+
+        // ============================================
+        // 階層データの定義
+        // ============================================
+        // 組織データ（階層構造）
+        // - name: 名前または役職名
+        // - title: 肩書き
+        // - children: 配下のメンバー
+        const orgData = {
+            name: "CEO",
+            title: "最高経営責任者",
+            children: [
+                {
+                    name: "CTO",
+                    title: "技術責任者",
+                    children: [
+                        {
+                            name: "開発部長",
+                            title: "部長",
+                            children: [
+                                {name: "田中", title: "リードエンジニア"},
+                                {name: "佐藤", title: "シニアエンジニア"},
+                                {name: "鈴木", title: "エンジニア"}
+                            ]
+                        },
+                        {
+                            name: "インフラ部長",
+                            title: "部長",
+                            children: [
+                                {name: "高橋", title: "SRE"},
+                                {name: "伊藤", title: "インフラエンジニア"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "CFO",
+                    title: "財務責任者",
+                    children: [
+                        {
+                            name: "経理部長",
+                            title: "部長",
+                            children: [
+                                {name: "山本", title: "経理"},
+                                {name: "中村", title: "経理"}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "CMO",
+                    title: "マーケティング責任者",
+                    children: [
+                        {
+                            name: "マーケ部長",
+                            title: "部長",
+                            children: [
+                                {name: "小林", title: "マーケター"},
+                                {name: "加藤", title: "マーケター"},
+                                {name: "吉田", title: "デザイナー"}
+                            ]
+                        },
+                        {
+                            name: "営業部長",
+                            title: "部長",
+                            children: [
+                                {name: "山田", title: "営業"},
+                                {name: "渡辺", title: "営業"}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        // ============================================
+        // 水平ツリー（左から右に展開）
+        // ============================================
+        const margin1 = {top: 20, right: 120, bottom: 20, left: 80};
+        const width1 = 900 - margin1.left - margin1.right;
+        const height1 = 500 - margin1.top - margin1.bottom;
+
+        const svg1 = d3.select("#horizontal-tree")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // ツリーレイアウトを作成
+        // size()で[高さ, 幅]を指定（水平ツリーなので幅と高さが逆）
+        const tree1 = d3.tree().size([height1, width1]);
+
+        // ============================================
+        // 階層データをD3のツリー構造に変換
+        // ============================================
+        let root1 = d3.hierarchy(orgData);
+        root1.x0 = height1 / 2;     // 初期X位置（中央）
+        root1.y0 = 0;               // 初期Y位置（左端）
+
+        // 初期状態で2階層まで展開
+        root1.descendants().forEach((d, i) => {
+            d.id = i;               // 各ノードに一意なIDを付与
+            if (d.depth > 1) {
+                // 3階層目以降は折りたたむ
+                // _children: 折りたたまれた子要素を保存
+                // children: 現在表示されている子要素
+                d._children = d.children;
+                d.children = null;
+            }
+        });
+
+        // 階層ごとの色を定義
+        const color1 = d3.scaleOrdinal()
+            .domain([0, 1, 2, 3])
+            .range(["#e74c3c", "#f39c12", "#3498db", "#2ecc71"]);
+
+        // ============================================
+        // ツリーの更新関数
+        // ============================================
+        // source: アニメーションの起点となるノード
+        function update1(source) {
+            const duration = 500;               // アニメーションの長さ（ミリ秒）
+            const treeData = tree1(root1);      // ツリーレイアウトを計算
+
+            const nodes = treeData.descendants();   // すべてのノード
+            const links = treeData.links();         // すべてのリンク
+
+            // ノード間の距離を調整
+            nodes.forEach(d => {
+                d.y = d.depth * 180;            // 階層ごとに180px間隔
+            });
+
+            // ============================================
+            // ノードの描画（Enter-Update-Exit パターン）
+            // ============================================
+            const node = svg1.selectAll("g.node")
+                .data(nodes, d => d.id);        // IDでデータを紐付け
+
+            // === Enter: 新しいノードの追加 ===
+            const nodeEnter = node.enter()
+                .append("g")
+                .attr("class", "node")
+                // 親の位置から開始（アニメーション用）
+                .attr("transform", d => `translate(${source.y0},${source.x0})`)
+                .on("click", (event, d) => {
+                    // クリックで展開/折りたたみをトグル
+                    if (d.children) {
+                        // 展開中 → 折りたたむ
+                        d._children = d.children;
+                        d.children = null;
+                    } else if (d._children) {
+                        // 折りたたみ中 → 展開
+                        d.children = d._children;
+                        d._children = null;
+                    }
+                    update1(d);     // ツリーを更新
+                });
+
+            // 円を追加
+            nodeEnter.append("circle")
+                .attr("r", 1e-6)                // 最初は見えないくらい小さく
+                // 折りたたまれた子要素がある場合は塗りつぶし
+                .attr("fill", d => d._children ? color1(d.depth) : "#fff")
+                .attr("stroke", d => color1(d.depth));
+
+            // テキストラベルを追加
+            nodeEnter.append("text")
+                .attr("dy", ".35em")
+                // 子要素がある場合は左側、ない場合は右側に配置
+                .attr("x", d => d.children || d._children ? -15 : 15)
+                .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+                .text(d => d.data.name)
+                .style("fill-opacity", 1e-6);   // 最初は透明
+
+            // === Update: 既存ノードの更新 ===
+            const nodeUpdate = nodeEnter.merge(node);
+
+            // 正しい位置に移動（アニメーション付き）
+            nodeUpdate.transition()
+                .duration(duration)
+                .attr("transform", d => `translate(${d.y},${d.x})`);
+
+            // 円のスタイルを更新
+            nodeUpdate.select("circle")
+                .attr("r", 10)              // 通常のサイズ
+                .attr("fill", d => d._children ? color1(d.depth) : "#fff")
+                .attr("stroke", d => color1(d.depth));
+
+            // テキストを表示
+            nodeUpdate.select("text")
+                .style("fill-opacity", 1);
+
+            // === Exit: 削除されるノードの処理 ===
+            const nodeExit = node.exit()
+                .transition()
+                .duration(duration)
+                // 親の位置に収束（アニメーション）
+                .attr("transform", d => `translate(${source.y},${source.x})`)
+                .remove();
+
+            nodeExit.select("circle").attr("r", 1e-6);          // 縮小
+            nodeExit.select("text").style("fill-opacity", 1e-6); // フェードアウト
+
+            // ============================================
+            // リンク（線）の描画
+            // ============================================
+            const link = svg1.selectAll("path.link")
+                .data(links, d => d.target.id);
+
+            // 新しいリンクを追加
+            const linkEnter = link.enter()
+                .insert("path", "g")            // gの前に挿入（リンクが背面になる）
+                .attr("class", "link")
+                .attr("d", d => {
+                    // 親の位置から開始
+                    const o = {x: source.x0, y: source.y0};
+                    return diagonal1({source: o, target: o});
+                });
+
+            // リンクを更新
+            linkEnter.merge(link)
+                .transition()
+                .duration(duration)
+                .attr("d", diagonal1);      // 正しい位置に移動
+
+            // 削除されるリンク
+            link.exit()
+                .transition()
+                .duration(duration)
+                .attr("d", d => {
+                    // 親の位置に収束
+                    const o = {x: source.x, y: source.y};
+                    return diagonal1({source: o, target: o});
+                })
+                .remove();
+
+            // 現在の位置を保存（次のアニメーション用）
+            nodes.forEach(d => {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+        }
+
+        // ============================================
+        // 曲線パスの生成（ベジェ曲線）
+        // ============================================
+        // 親から子へのなめらかな曲線を描画
+        function diagonal1(d) {
+            // M: 移動（始点）
+            // C: 3次ベジェ曲線（制御点1, 制御点2, 終点）
+            return `M${d.source.y},${d.source.x}
+                    C${(d.source.y + d.target.y) / 2},${d.source.x}
+                     ${(d.source.y + d.target.y) / 2},${d.target.x}
+                     ${d.target.y},${d.target.x}`;
+        }
+
+        // ============================================
+        // 展開/折りたたみ制御関数
+        // ============================================
+        // すべてのノードを展開
+        function expandAll() {
+            root1.descendants().forEach(d => {
+                if (d._children) {
+                    d.children = d._children;       // 折りたたまれた子要素を復元
+                    d._children = null;
+                }
+            });
+            update1(root1);
+        }
+
+        // すべてのノードを折りたたむ（ルート以外）
+        function collapseAll() {
+            root1.descendants().forEach(d => {
+                if (d.depth > 0 && d.children) {
+                    d._children = d.children;       // 子要素を保存
+                    d.children = null;              // 表示をクリア
+                }
+            });
+            update1(root1);
+        }
+
+        // 初期表示
+        update1(root1);
+
+        // ============================================
+        // 垂直ツリー（上から下に展開）
+        // ============================================
+        // プロジェクトの工程を表すシンプルなデータ
+        const verticalData = {
+            name: "プロジェクト",
+            children: [
+                {
+                    name: "設計",
+                    children: [
+                        {name: "要件定義"},
+                        {name: "基本設計"},
+                        {name: "詳細設計"}
+                    ]
+                },
+                {
+                    name: "開発",
+                    children: [
+                        {name: "フロントエンド"},
+                        {name: "バックエンド"},
+                        {name: "インフラ"}
+                    ]
+                },
+                {
+                    name: "テスト",
+                    children: [
+                        {name: "単体テスト"},
+                        {name: "結合テスト"},
+                        {name: "システムテスト"}
+                    ]
+                }
+            ]
+        };
+
+        const margin2 = {top: 40, right: 20, bottom: 40, left: 20};
+        const width2 = 700 - margin2.left - margin2.right;
+        const height2 = 350 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#vertical-tree")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left + width2 / 2},${margin2.top})`);
+
+        // ツリーレイアウト（size()は[幅, 高さ]の順）
+        const tree2 = d3.tree().size([width2, height2]);
+        const root2 = d3.hierarchy(verticalData);
+        tree2(root2);       // レイアウトを計算
+
+        // ============================================
+        // 垂直ツリーの描画（静的、展開/折りたたみなし）
+        // ============================================
+        // リンク（線）を描画
+        svg2.selectAll(".link")
+            .data(root2.links())
+            .enter()
+            .append("path")
+            .attr("class", "link")
+            // d3.linkVertical()で垂直方向のリンクパスを生成
+            .attr("d", d3.linkVertical()
+                .x(d => d.x - width2 / 2)       // X座標（中央揃え調整）
+                .y(d => d.y)                     // Y座標
+            );
+
+        // ノード（円とテキスト）を描画
+        const node2 = svg2.selectAll(".node")
+            .data(root2.descendants())
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.x - width2 / 2},${d.y})`);
+
+        // 円を追加
+        node2.append("circle")
+            .attr("r", 8)
+            // 子要素がある場合は青、ない場合は緑
+            .attr("fill", d => d.children ? "#4a90d9" : "#2ecc71")
+            .attr("stroke", d => d.children ? "#357abd" : "#27ae60")
+            .attr("stroke-width", 2);
+
+        // テキストラベルを追加
+        node2.append("text")
+            .attr("dy", d => d.children ? -15 : 25)     // 親ノードは上、子ノードは下
+            .attr("text-anchor", "middle")               // 中央揃え
+            .attr("font-size", "12px")
+            .text(d => d.data.name);
+    </script>
+</body>
+</html>

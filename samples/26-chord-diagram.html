@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>26 - コードダイアグラム</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .chord {
+            fill-opacity: 0.7;
+        }
+        .chord:hover {
+            fill-opacity: 1;
+        }
+        .group-arc {
+            cursor: pointer;
+        }
+        .group-arc:hover {
+            fill-opacity: 0.8;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>26 - コードダイアグラム</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.chord()を使った関係性の可視化、マトリックスデータの表示</p>
+        <p>グループにホバーすると関連するフローがハイライトされます。</p>
+    </div>
+
+    <div class="chart-container">
+        <div id="chord-diagram"></div>
+        <div class="legend" id="legend"></div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // コードダイアグラム（Chord Diagram）とは？
+        // ============================================
+        // コードダイアグラムは、複数のエンティティ間の関係性や流れを視覚化する円形のチャートです
+        // 各エンティティは円周上に配置され、それらの間の関係はリボン（弦）で表現されます
+        // D3.jsでは以下のコンポーネントを使用して作成します：
+        //
+        // 1. d3.chord() - マトリックスデータから関係性データを生成
+        // 2. d3.arc() - 円周上のグループ（アーク）を描画
+        // 3. d3.ribbon() - グループ間の関係（リボン）を描画
+        //
+        // 用途: 貿易フロー、移住パターン、データフロー、コミュニケーションネットワークなど
+
+        // ============================================
+        // データの準備
+        // ============================================
+
+        // 貿易フローデータ（国間の輸出額、億ドル）
+        // 各国がどの国へどれだけ輸出しているかを示すマトリックス
+        const names = ["日本", "中国", "韓国", "アメリカ", "ドイツ", "イギリス"];
+
+        // マトリックスの構造：
+        // matrix[i][j] は、i国からj国への輸出額を表します
+        // 対角線（i === j）は0（自国への輸出はなし）
+        const matrix = [
+            // 日本から    中国から  韓国から  アメリカから ドイツから  イギリスから
+            [0,    150,   80,    140,    45,    30],  // 日本へ
+            [175,  0,     95,    160,    55,    40],  // 中国へ
+            [65,   120,   0,     60,     25,    15],  // 韓国へ
+            [180,  250,   75,    0,      85,    70],  // アメリカへ
+            [50,   90,    30,    110,    0,     55],  // ドイツへ
+            [35,   65,    20,    95,     65,    0]    // イギリスへ
+        ];
+
+        // ============================================
+        // SVGとスケールの設定
+        // ============================================
+
+        const width = 800;
+        const height = 800;
+        // innerRadius: 円の内側の半径（リボンが接続する円の半径）
+        const innerRadius = Math.min(width, height) * 0.35;
+        // outerRadius: グループアーク（国を示す円弧）の外側半径
+        const outerRadius = innerRadius + 20;
+
+        // カラースケール: 各国に色を割り当て
+        const colors = d3.scaleOrdinal()
+            .domain(names)
+            .range(["#e74c3c", "#f39c12", "#3498db", "#2ecc71", "#9b59b6", "#1abc9c"]);
+
+        // SVGを作成し、中央に配置
+        const svg = d3.select("#chord-diagram")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", `translate(${width / 2},${height / 2})`);  // 中央に移動
+
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // コードレイアウトの設定
+        // ============================================
+
+        // d3.chord() はマトリックスデータを解析し、コード（関係性）データを生成します
+        const chord = d3.chord()
+            .padAngle(0.05)                    // グループ間の余白（ラジアン）
+            .sortSubgroups(d3.descending)      // サブグループ（各グループ内）を降順でソート
+            .sortChords(d3.descending);        // コード（リボン）を降順でソート
+
+        // マトリックスデータをコードデータに変換
+        // chords: リボンのデータ配列
+        // chords.groups: グループ（国）のデータ配列
+        const chords = chord(matrix);
+
+        // ============================================
+        // ジェネレータの設定
+        // ============================================
+
+        // アーク生成器: 円周上のグループ（各国）を描画
+        const arc = d3.arc()
+            .innerRadius(innerRadius)
+            .outerRadius(outerRadius);
+
+        // リボン生成器: グループ間の関係（貿易フロー）を描画
+        const ribbon = d3.ribbon()
+            .radius(innerRadius);  // リボンが接続する円の半径
+
+        // ============================================
+        // グループアーク（各国）の描画
+        // ============================================
+
+        // グループ（国）のグループ要素を作成
+        const group = svg.append("g")
+            .selectAll("g")
+            .data(chords.groups)  // chords.groups: 各グループの角度情報
+            .enter()
+            .append("g");
+
+        // グループアーク（円弧）を描画
+        group.append("path")
+            .attr("class", "group-arc")
+            .attr("d", arc)                              // アーク生成器でパスを生成
+            .attr("fill", d => colors(names[d.index]))   // d.index: グループのインデックス
+            .attr("stroke", "#fff")
+            .on("mouseenter", function(event, d) {
+                // イベントハンドラ引数:
+                // event: マウスイベントオブジェクト
+                // d: グループデータ（index, startAngle, endAngle, value）
+
+                // 関連するコード（リボン）をハイライト
+                svg.selectAll(".chord")
+                    .transition()
+                    .duration(200)
+                    .style("opacity", chord =>
+                        // このグループが発信元または受信先の場合は不透明度1、それ以外は0.1
+                        chord.source.index === d.index || chord.target.index === d.index ? 1 : 0.1
+                    );
+
+                // この国の総輸出額を計算
+                const total = d3.sum(matrix[d.index]);
+                tooltip.style("opacity", 1)
+                    .html(`
+                        <strong>${names[d.index]}</strong><br>
+                        総輸出額: ${total}億ドル
+                    `)
+                    .style("left", (event.pageX + 15) + "px")
+                    .style("top", (event.pageY - 20) + "px");
+            })
+            .on("mouseleave", function() {
+                // ハイライトを解除
+                svg.selectAll(".chord")
+                    .transition()
+                    .duration(200)
+                    .style("opacity", 0.7);
+                tooltip.style("opacity", 0);
+            });
+
+        // ============================================
+        // グループラベルの描画
+        // ============================================
+
+        // グループ名（国名）ラベル
+        group.append("text")
+            .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })  // 中間角度を計算
+            .attr("dy", ".35em")  // 垂直方向の微調整
+            .attr("transform", d => `
+                rotate(${(d.angle * 180 / Math.PI - 90)})  // 角度を度数に変換し、-90度で調整
+                translate(${outerRadius + 15})              // 外側に移動
+                ${d.angle > Math.PI ? "rotate(180)" : ""}  // 下半分は180度回転（読みやすくする）
+            `)
+            .attr("text-anchor", d => d.angle > Math.PI ? "end" : "start")  // テキストの配置
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .text(d => names[d.index]);  // d.index: グループのインデックス
+
+        // グループ値（輸出額）ラベル
+        group.append("text")
+            .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+            .attr("dy", "1.5em")  // 国名の下に配置
+            .attr("transform", d => `
+                rotate(${(d.angle * 180 / Math.PI - 90)})
+                translate(${outerRadius + 15})
+                ${d.angle > Math.PI ? "rotate(180)" : ""}
+            `)
+            .attr("text-anchor", d => d.angle > Math.PI ? "end" : "start")
+            .attr("font-size", "11px")
+            .attr("fill", "#666")
+            .text(d => `${d3.sum(matrix[d.index])}億$`);  // その国の総輸出額
+
+        // ============================================
+        // コード（リボン）の描画
+        // ============================================
+
+        // リボン（グループ間の関係）を描画
+        svg.append("g")
+            .selectAll("path")
+            .data(chords)  // chords: 関係性データの配列
+            .enter()
+            .append("path")
+            .attr("class", "chord")
+            .attr("d", ribbon)                                  // リボン生成器でパスを生成
+            .attr("fill", d => colors(names[d.source.index]))   // 発信元の色を使用
+            .attr("stroke", "#fff")
+            .attr("stroke-width", 0.5)
+            .style("opacity", 0.7)
+            .on("mouseenter", function(event, d) {
+                // イベントハンドラ引数:
+                // event: マウスイベントオブジェクト
+                // d: コードデータ（source, target: それぞれ index, startAngle, endAngle, value を含む）
+
+                // このリボンをハイライト
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .style("opacity", 1);
+
+                // 双方向の貿易情報を表示
+                tooltip.style("opacity", 1)
+                    .html(`
+                        <strong>${names[d.source.index]} → ${names[d.target.index]}</strong><br>
+                        輸出額: ${matrix[d.source.index][d.target.index]}億ドル<br>
+                        <br>
+                        <strong>${names[d.target.index]} → ${names[d.source.index]}</strong><br>
+                        輸出額: ${matrix[d.target.index][d.source.index]}億ドル
+                    `)
+                    .style("left", (event.pageX + 15) + "px")
+                    .style("top", (event.pageY - 20) + "px");
+            })
+            .on("mouseleave", function() {
+                // ハイライトを解除
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .style("opacity", 0.7);
+                tooltip.style("opacity", 0);
+            });
+
+        // ============================================
+        // 凡例の作成
+        // ============================================
+
+        const legend = d3.select("#legend");
+        // 各国の凡例アイテムを作成
+        names.forEach((name, i) => {
+            // i: 配列のインデックス（0から始まる）
+            // name: 国名
+            const item = legend.append("div").attr("class", "legend-item");
+            // 色見本
+            item.append("div")
+                .attr("class", "legend-color")
+                .style("background", colors(name));
+            // 国名ラベル
+            item.append("span").text(name);
+        });
+    </script>
+</body>
+</html>

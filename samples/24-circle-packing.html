@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>24 - サークルパッキング</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .node {
+            cursor: pointer;
+        }
+        .node circle {
+            transition: fill-opacity 0.3s;
+        }
+        .node:hover circle {
+            fill-opacity: 0.8;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>24 - サークルパッキング</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.pack()を使った階層的なサークルパッキング、ズーム可能なレイアウト</p>
+        <p>円をクリックするとズームイン/アウトできます。</p>
+    </div>
+
+    <div class="chart-container">
+        <div id="circle-packing"></div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // サークルパッキング（Circle Packing）とは？
+        // ============================================
+        // サークルパッキングは、階層構造を持つデータを入れ子の円で表現する可視化手法です。
+        // 各円の面積は、データの値（この例では人口）に比例します。
+        //
+        // 特徴：
+        // - 階層構造を円の入れ子で直感的に表現
+        // - 円の大きさで値の大小を視覚的に比較
+        // - ズーム機能で詳細を見ることができる
+        // - 美しく有機的なレイアウト
+        //
+        // このサンプルでは、世界の地域と国の人口を可視化し、
+        // クリックでズームイン/アウトできます。
+        // ============================================
+
+        // ============================================
+        // 階層データの定義
+        // ============================================
+        // データ：世界の地域と国の人口（単位：百万人）
+        // - name: 地域名または国名
+        // - children: 配下の国
+        // - value: 人口（末端ノードのみ）
+        const data = {
+            name: "世界",
+            children: [
+                {
+                    name: "アジア",
+                    children: [
+                        {name: "中国", value: 1412},
+                        {name: "インド", value: 1408},
+                        {name: "インドネシア", value: 276},
+                        {name: "パキスタン", value: 229},
+                        {name: "バングラデシュ", value: 169},
+                        {name: "日本", value: 125},
+                        {name: "フィリピン", value: 113},
+                        {name: "ベトナム", value: 99}
+                    ]
+                },
+                {
+                    name: "アフリカ",
+                    children: [
+                        {name: "ナイジェリア", value: 218},
+                        {name: "エチオピア", value: 120},
+                        {name: "エジプト", value: 104},
+                        {name: "コンゴ", value: 95},
+                        {name: "南アフリカ", value: 60},
+                        {name: "タンザニア", value: 63},
+                        {name: "ケニア", value: 54}
+                    ]
+                },
+                {
+                    name: "ヨーロッパ",
+                    children: [
+                        {name: "ロシア", value: 144},
+                        {name: "ドイツ", value: 84},
+                        {name: "イギリス", value: 67},
+                        {name: "フランス", value: 65},
+                        {name: "イタリア", value: 59},
+                        {name: "スペイン", value: 47}
+                    ]
+                },
+                {
+                    name: "北米",
+                    children: [
+                        {name: "アメリカ", value: 332},
+                        {name: "メキシコ", value: 130},
+                        {name: "カナダ", value: 38}
+                    ]
+                },
+                {
+                    name: "南米",
+                    children: [
+                        {name: "ブラジル", value: 214},
+                        {name: "コロンビア", value: 51},
+                        {name: "アルゼンチン", value: 45},
+                        {name: "ペルー", value: 34}
+                    ]
+                },
+                {
+                    name: "オセアニア",
+                    children: [
+                        {name: "オーストラリア", value: 26},
+                        {name: "ニュージーランド", value: 5}
+                    ]
+                }
+            ]
+        };
+
+        // ============================================
+        // 設定とカラースケールの定義
+        // ============================================
+        const width = 900;
+        const height = 900;
+
+        // 地域ごとの色を定義
+        const color = d3.scaleOrdinal()
+            .domain(["アジア", "アフリカ", "ヨーロッパ", "北米", "南米", "オセアニア"])
+            .range(["#e74c3c", "#f39c12", "#3498db", "#2ecc71", "#9b59b6", "#1abc9c"]);
+
+        // ============================================
+        // SVG要素の作成
+        // ============================================
+        const svg = d3.select("#circle-packing")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [-width / 2, -height / 2, width, height])  // 中心を原点に
+            .style("cursor", "pointer");
+
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // 階層データの作成
+        // ============================================
+        // d3.hierarchy()で階層構造を作成
+        const root = d3.hierarchy(data)
+            .sum(d => d.value)                      // 各ノードの値を合計
+            .sort((a, b) => b.value - a.value);     // 値の大きい順にソート
+
+        // ============================================
+        // パックレイアウトの設定
+        // ============================================
+        // d3.pack()で円の配置を計算
+        const pack = d3.pack()
+            .size([width - 4, height - 4])      // 全体のサイズ
+            .padding(3);                        // 円同士の間隔
+
+        // レイアウトを計算（各ノードにx, y, rが設定される）
+        pack(root);
+
+        let focus = root;       // 現在フォーカスされているノード
+        let view;               // 現在のビュー（ズーム状態）
+
+        // ============================================
+        // ノード（円）の描画
+        // ============================================
+        const node = svg.append("g")
+            .selectAll("circle")
+            .data(root.descendants())
+            .enter()
+            .append("g")
+            .attr("class", "node");
+
+        // 円を描画
+        node.append("circle")
+            .attr("fill", d => {
+                // 階層ごとに色を設定
+                if (d.depth === 0) return "#fff";              // ルートは白
+                if (d.depth === 1) return color(d.data.name);  // 地域は設定色
+                // 国は地域の色を明るくしたもの
+                const parent = d.ancestors().find(a => a.depth === 1);
+                return d3.color(color(parent.data.name)).brighter(0.5);
+            })
+            .attr("fill-opacity", d => d.depth === 0 ? 0.1 : 0.7)
+            .attr("stroke", d => d.depth === 0 ? "#999" : null)
+            .on("mouseover", function(event, d) {
+                // ホバー時に枠線を表示
+                d3.select(this).attr("stroke", "#333").attr("stroke-width", 2);
+
+                // ツールチップを表示
+                if (d.depth > 0) {
+                    const region = d.depth === 1 ? d.data.name :
+                        d.ancestors().find(a => a.depth === 1).data.name;
+
+                    tooltip.style("opacity", 1)
+                        .html(`
+                            <strong>${d.data.name}</strong><br>
+                            ${d.depth === 2 ? `地域: ${region}<br>` : ""}
+                            ${d.value ? `人口: ${d.value}百万人` : ""}
+                        `)
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 20) + "px");
+                }
+            })
+            .on("mouseout", function() {
+                d3.select(this).attr("stroke", null);
+                tooltip.style("opacity", 0);
+            })
+            .on("click", (event, d) => {
+                // クリックでズーム（現在のフォーカスと異なる場合のみ）
+                if (focus !== d) {
+                    zoom(event, d);
+                    event.stopPropagation();    // イベントの伝播を停止
+                }
+            });
+
+        // ============================================
+        // ラベル（テキスト）の描画
+        // ============================================
+        const label = svg.append("g")
+            .style("font-size", "12px")
+            .attr("pointer-events", "none")
+            .attr("text-anchor", "middle")
+            .selectAll("text")
+            .data(root.descendants())
+            .enter()
+            .append("text")
+            .style("fill-opacity", d => d.parent === root ? 1 : 0)      // 表示/非表示
+            .style("display", d => d.parent === root ? "inline" : "none")
+            .style("font-weight", d => d.depth === 1 ? "bold" : "normal")
+            .text(d => d.data.name);
+
+        // ============================================
+        // 初期ビューの設定
+        // ============================================
+        zoomTo([root.x, root.y, root.r * 2]);
+
+        // ============================================
+        // ズーム関数
+        // ============================================
+        // 指定されたビュー（v = [x, y, r]）にズーム
+        function zoomTo(v) {
+            const k = width / v[2];     // ズーム倍率
+            view = v;
+
+            // ラベルの位置を更新
+            label.attr("transform", d =>
+                `translate(${(d.x - v[0]) * k},${(d.y - v[1]) * k})`
+            );
+
+            // 円の位置を更新
+            node.selectAll("circle").attr("transform", d =>
+                `translate(${(d.x - v[0]) * k},${(d.y - v[1]) * k})`
+            );
+
+            // 円の半径を更新
+            node.selectAll("circle").attr("r", d => d.r * k);
+        }
+
+        // クリック時のズーム処理
+        function zoom(event, d) {
+            focus = d;      // フォーカスを更新
+
+            // アニメーション付きでズーム
+            const transition = svg.transition()
+                .duration(750)      // 750ミリ秒
+                .tween("zoom", () => {
+                    // d3.interpolateZoom()でなめらかなズームを実現
+                    const i = d3.interpolateZoom(view, [focus.x, focus.y, focus.r * 2]);
+                    return t => zoomTo(i(t));   // t: 0から1まで変化
+                });
+
+            // ラベルの表示/非表示をアニメーション
+            label
+                .filter(function(d) {
+                    // フォーカスの子要素か、現在表示中のもの
+                    return d.parent === focus || this.style.display === "inline";
+                })
+                .transition(transition)
+                .style("fill-opacity", d => d.parent === focus ? 1 : 0)
+                .on("start", function(d) {
+                    // アニメーション開始時に表示
+                    if (d.parent === focus) this.style.display = "inline";
+                })
+                .on("end", function(d) {
+                    // アニメーション終了時に非表示
+                    if (d.parent !== focus) this.style.display = "none";
+                });
+        }
+
+        // SVGの背景をクリックしたらルートにズームアウト
+        svg.on("click", (event) => zoom(event, root));
+    </script>
+</body>
+</html>

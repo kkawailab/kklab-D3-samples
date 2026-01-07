@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>19 - ズーム機能</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+            cursor: grab;
+        }
+        svg:active {
+            cursor: grabbing;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        .zoom-info {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .instruction {
+            background: #e8f4fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>19 - ズーム機能</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.zoom()を使ったパン・ズーム操作、スケール連動、ズーム制限</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>散布図のズーム</h2>
+        <div class="instruction">
+            マウスホイールでズーム、ドラッグでパン操作ができます。
+        </div>
+        <div class="controls">
+            <button onclick="zoomIn()">ズームイン (+)</button>
+            <button onclick="zoomOut()">ズームアウト (-)</button>
+            <button onclick="resetZoom()">リセット</button>
+        </div>
+        <div id="zoom-scatter"></div>
+        <div class="zoom-info" id="zoom-info">ズーム: 1.00x</div>
+    </div>
+
+    <div class="chart-container">
+        <h2>折れ線グラフのX軸ズーム</h2>
+        <div class="instruction">
+            グラフ領域をドラッグしてX軸方向にズームできます。
+        </div>
+        <div class="controls">
+            <button onclick="resetLineZoom()">リセット</button>
+        </div>
+        <div id="zoom-line"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // ズーム機能とは？
+        // ============================================
+        // d3.zoom()を使ってチャートをインタラクティブに拡大縮小・パン移動
+        // 主な機能：
+        // 1. マウスホイール：ズームイン/アウト
+        // 2. ドラッグ：パン（移動）
+        // 3. プログラマティックなズーム制御（ボタンなど）
+        // ズーム時のスケール変換：
+        // - transform.rescaleX/Y(): スケールを変換
+        // - transform.k: ズーム倍率
+        // - transform.x/y: 移動量
+
+        // ============================================
+        // 1. 散布図の2Dズーム（XY両方向）
+        // ============================================
+
+        // ランダムな散布図データを生成
+        const scatterData = d3.range(200).map(() => ({
+            x: Math.random() * 100,
+            y: Math.random() * 100,
+            r: Math.random() * 8 + 3,
+            color: d3.interpolateRainbow(Math.random())
+        }));
+
+        const margin1 = {top: 20, right: 20, bottom: 40, left: 50};
+        const width1 = 700 - margin1.left - margin1.right;
+        const height1 = 400 - margin1.top - margin1.bottom;
+
+        const svg1 = d3.select("#zoom-scatter")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom);
+
+        // クリップパス定義
+        svg1.append("defs")
+            .append("clipPath")
+            .attr("id", "clip-scatter")
+            .append("rect")
+            .attr("width", width1)
+            .attr("height", height1);
+
+        const g1 = svg1.append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // スケール
+        const xScale1 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([0, width1]);
+
+        const yScale1 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([height1, 0]);
+
+        // 現在のスケール（ズーム用）
+        let currentXScale = xScale1.copy();
+        let currentYScale = yScale1.copy();
+
+        // 軸
+        const xAxis1 = g1.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", `translate(0,${height1})`)
+            .call(d3.axisBottom(xScale1));
+
+        const yAxis1 = g1.append("g")
+            .attr("class", "y-axis")
+            .call(d3.axisLeft(yScale1));
+
+        // データポイントコンテナ
+        const dotsContainer = g1.append("g")
+            .attr("clip-path", "url(#clip-scatter)");
+
+        // データポイント描画
+        dotsContainer.selectAll("circle")
+            .data(scatterData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => xScale1(d.x))
+            .attr("cy", d => yScale1(d.y))
+            .attr("r", d => d.r)
+            .attr("fill", d => d.color)
+            .attr("opacity", 0.7);
+
+        // ============================================
+        // ズーム動作の定義
+        // ============================================
+
+        const zoom1 = d3.zoom()
+            // scaleExtent: ズーム倍率の範囲（最小0.5倍〜最大10倍）
+            .scaleExtent([0.5, 10])
+            // translateExtent: パン移動の範囲制限
+            // [左上座標, 右下座標]で範囲を指定
+            .translateExtent([[-100, -100], [width1 + 100, height1 + 100]])
+            // ズームイベントのコールバック
+            .on("zoom", zoomed1);
+
+        // ============================================
+        // ズームイベントハンドラ
+        // ============================================
+        // マウスホイールやドラッグで呼び出される
+
+        function zoomed1(event) {
+            // transform: ズーム変換オブジェクト
+            // - k: スケール（ズーム倍率）
+            // - x, y: 平行移動量
+            const transform = event.transform;
+
+            // ============================================
+            // スケールの変換
+            // ============================================
+            // rescaleX/Y: 元のスケールにズーム変換を適用
+            currentXScale = transform.rescaleX(xScale1);
+            currentYScale = transform.rescaleY(yScale1);
+
+            // 軸を更新（新しいスケールで再描画）
+            xAxis1.call(d3.axisBottom(currentXScale));
+            yAxis1.call(d3.axisLeft(currentYScale));
+
+            // 全てのドットの位置を更新
+            dotsContainer.selectAll("circle")
+                .attr("cx", d => currentXScale(d.x))  // 変換後のX座標
+                .attr("cy", d => currentYScale(d.y));  // 変換後のY座標
+
+            // ズーム倍率を表示
+            document.getElementById("zoom-info").textContent =
+                `ズーム: ${transform.k.toFixed(2)}x`;
+        }
+
+        // SVGにズーム動作を適用
+        // これにより、SVG上でマウス操作が有効になる
+        svg1.call(zoom1);
+
+        // ============================================
+        // プログラマティックなズームコントロール
+        // ============================================
+        // ボタンクリックでズームを制御
+
+        function zoomIn() {
+            // scaleBy: 現在のズーム倍率を1.5倍にする
+            svg1.transition().duration(500).call(zoom1.scaleBy, 1.5);
+        }
+
+        function zoomOut() {
+            // 0.67倍 ≈ 2/3倍（1.5の逆数）
+            svg1.transition().duration(500).call(zoom1.scaleBy, 0.67);
+        }
+
+        function resetZoom() {
+            // zoomIdentity: 初期状態のズーム変換（倍率1、移動0）
+            svg1.transition().duration(500).call(zoom1.transform, d3.zoomIdentity);
+        }
+
+        // === 折れ線グラフのX軸ズーム ===
+        const lineData = d3.range(100).map(i => ({
+            x: i,
+            y: Math.sin(i / 5) * 30 + 50 + Math.random() * 10
+        }));
+
+        const margin2 = {top: 20, right: 20, bottom: 40, left: 50};
+        const width2 = 700 - margin2.left - margin2.right;
+        const height2 = 300 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#zoom-line")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom);
+
+        // クリップパス
+        svg2.append("defs")
+            .append("clipPath")
+            .attr("id", "clip-line")
+            .append("rect")
+            .attr("width", width2)
+            .attr("height", height2);
+
+        const g2 = svg2.append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        // スケール
+        const xScale2 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([0, width2]);
+
+        const yScale2 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([height2, 0]);
+
+        let currentXScale2 = xScale2.copy();
+
+        // 軸
+        const xAxis2 = g2.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(xScale2));
+
+        g2.append("g")
+            .attr("class", "y-axis")
+            .call(d3.axisLeft(yScale2));
+
+        // ライン生成器
+        const line2 = d3.line()
+            .x(d => currentXScale2(d.x))
+            .y(d => yScale2(d.y))
+            .curve(d3.curveMonotoneX);
+
+        // ラインパスコンテナ
+        const lineContainer = g2.append("g")
+            .attr("clip-path", "url(#clip-line)");
+
+        const linePath2 = lineContainer.append("path")
+            .datum(lineData)
+            .attr("fill", "none")
+            .attr("stroke", "#e74c3c")
+            .attr("stroke-width", 2)
+            .attr("d", line2);
+
+        // データポイント
+        const dots2 = lineContainer.selectAll("circle")
+            .data(lineData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => xScale2(d.x))
+            .attr("cy", d => yScale2(d.y))
+            .attr("r", 3)
+            .attr("fill", "#e74c3c");
+
+        // X軸のみのズーム
+        const zoom2 = d3.zoom()
+            .scaleExtent([1, 10])
+            .translateExtent([[0, 0], [width2, height2]])
+            .extent([[0, 0], [width2, height2]])
+            .on("zoom", zoomed2);
+
+        function zoomed2(event) {
+            const transform = event.transform;
+            currentXScale2 = transform.rescaleX(xScale2);
+
+            // X軸更新
+            xAxis2.call(d3.axisBottom(currentXScale2));
+
+            // ライン更新
+            linePath2.attr("d", line2);
+
+            // ドット位置更新
+            dots2.attr("cx", d => currentXScale2(d.x));
+        }
+
+        // ズーム用のオーバーレイ
+        g2.append("rect")
+            .attr("width", width2)
+            .attr("height", height2)
+            .attr("fill", "none")
+            .attr("pointer-events", "all")
+            .call(zoom2);
+
+        function resetLineZoom() {
+            g2.select("rect")
+                .transition()
+                .duration(500)
+                .call(zoom2.transform, d3.zoomIdentity);
+        }
+    </script>
+</body>
+</html>

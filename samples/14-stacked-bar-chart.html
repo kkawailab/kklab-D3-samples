@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>14 - 積み上げ棒グラフ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        button.active {
+            background: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <h1>14 - 積み上げ棒グラフ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.stack()を使った積み上げ棒グラフ、正規化表示、グループ化棒グラフ</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>四半期売上（部門別）</h2>
+        <div class="controls">
+            <button class="active" onclick="setChartType('stacked')">積み上げ</button>
+            <button onclick="setChartType('grouped')">グループ化</button>
+            <button onclick="setChartType('normalized')">100%積み上げ</button>
+        </div>
+        <div id="stacked-bar"></div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 積み上げ棒グラフ（Stacked Bar Chart）とは：
+        // 複数のカテゴリのデータを1つの棒に積み上げて表示するグラフです。
+        // 全体の合計値と各カテゴリの構成比を同時に把握できます。
+        // グループ化表示や100%積み上げ表示にも切り替え可能にしています。
+        // ============================================
+
+        // ============================================
+        // データ（四半期別の部門別売上）
+        // ============================================
+        const data = [
+            {quarter: "Q1", electronics: 120, clothing: 80, food: 60, furniture: 40},
+            {quarter: "Q2", electronics: 150, clothing: 95, food: 70, furniture: 55},
+            {quarter: "Q3", electronics: 180, clothing: 110, food: 85, furniture: 65},
+            {quarter: "Q4", electronics: 220, clothing: 130, food: 100, furniture: 80}
+        ];
+
+        const keys = ["electronics", "clothing", "food", "furniture"];
+        const keyLabels = {
+            electronics: "電子機器",
+            clothing: "衣料品",
+            food: "食品",
+            furniture: "家具"
+        };
+
+        const colors = {
+            electronics: "#3498db",
+            clothing: "#e74c3c",
+            food: "#2ecc71",
+            furniture: "#f39c12"
+        };
+
+        const margin = {top: 30, right: 120, bottom: 50, left: 60};
+        const width = 700 - margin.left - margin.right;
+        const height = 400 - margin.top - margin.bottom;
+
+        const svg = d3.select("#stacked-bar")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const tooltip = d3.select("#tooltip");
+
+        // スケール
+        const xScale = d3.scaleBand()
+            .domain(data.map(d => d.quarter))
+            .range([0, width])
+            .padding(0.3);
+
+        const yScale = d3.scaleLinear()
+            .range([height, 0]);
+
+        // X軸
+        svg.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(xScale));
+
+        // Y軸
+        const yAxis = svg.append("g")
+            .attr("class", "y-axis");
+
+        // 凡例
+        const legend = svg.append("g")
+            .attr("transform", `translate(${width + 20}, 30)`);
+
+        keys.forEach((key, i) => {
+            const g = legend.append("g")
+                .attr("transform", `translate(0, ${i * 28})`);
+
+            g.append("rect")
+                .attr("width", 18)
+                .attr("height", 18)
+                .attr("fill", colors[key])
+                .attr("rx", 3);
+
+            g.append("text")
+                .attr("x", 25)
+                .attr("y", 14)
+                .attr("font-size", "13px")
+                .text(keyLabels[key]);
+        });
+
+        // 現在の表示タイプ（"stacked", "grouped", "normalized"）
+        let currentType = "stacked";
+
+        // ============================================
+        // グラフタイプ切り替え関数
+        // ============================================
+        function setChartType(type) {
+            currentType = type;
+            // すべてのボタンのactiveクラスを解除
+            d3.selectAll(".controls button").classed("active", false);
+            // クリックされたボタンにactiveクラスを追加
+            d3.selectAll(".controls button").filter(function() {
+                return this.textContent.includes(
+                    type === "stacked" ? "積み上げ" :
+                    type === "grouped" ? "グループ化" : "100%"
+                );
+            }).classed("active", true);
+            updateChart();
+        }
+
+        // ============================================
+        // グラフ更新関数（タイプに応じてデータを変換して描画）
+        // ============================================
+        function updateChart() {
+            let series;
+            let maxY;
+
+            if (currentType === "stacked") {
+                // 積み上げ棒グラフ
+                series = d3.stack().keys(keys)(data);
+                maxY = d3.max(series, s => d3.max(s, d => d[1]));  // d[1]: 積み上げの上端
+            } else if (currentType === "normalized") {
+                // 100%積み上げ棒グラフ（正規化）
+                const normalizedData = data.map(d => {
+                    const total = d3.sum(keys, k => d[k]);  // 合計値を計算
+                    const norm = {quarter: d.quarter};
+                    keys.forEach(k => norm[k] = d[k] / total * 100);  // パーセンテージに変換
+                    return norm;
+                });
+                series = d3.stack().keys(keys)(normalizedData);
+                maxY = 100;  // 最大値は100%
+            } else {
+                // グループ化棒グラフ
+                // 各部門ごとに配列を作成
+                series = keys.map(key => data.map(d => ({
+                    key: key,
+                    quarter: d.quarter,
+                    value: d[key]
+                })));
+                maxY = d3.max(data, d => d3.max(keys, k => d[k]));
+            }
+
+            // Y軸スケールの範囲を更新
+            yScale.domain([0, maxY * 1.05]).nice();
+
+            // Y軸を更新（アニメーション付き）
+            yAxis.transition()
+                .duration(500)
+                .call(d3.axisLeft(yScale).tickFormat(d =>
+                    currentType === "normalized" ? d + "%" : d  // 正規化時は%表示
+                ));
+
+            // 既存の棒を削除
+            svg.selectAll(".layer").remove();
+            svg.selectAll(".grouped-bar").remove();
+
+            if (currentType === "grouped") {
+                // ============================================
+                // グループ化棒グラフの描画
+                // ============================================
+                // 各四半期内で部門ごとに棒を並べるためのサブスケール
+                const xSubScale = d3.scaleBand()
+                    .domain(keys)                    // 部門のリスト
+                    .range([0, xScale.bandwidth()])  // 1つの四半期の幅内に配置
+                    .padding(0.05);
+
+                // 各四半期のグループを作成
+                const groups = svg.selectAll(".grouped-bar")
+                    .data(data)
+                    .enter()
+                    .append("g")
+                    .attr("class", "grouped-bar")
+                    .attr("transform", d => `translate(${xScale(d.quarter)},0)`);
+
+                // グループ内に各部門の棒を追加
+                groups.selectAll("rect")
+                    .data(d => keys.map(key => ({key, value: d[key], quarter: d.quarter})))
+                    .enter()
+                    .append("rect")
+                    .attr("x", d => xSubScale(d.key))
+                    .attr("y", height)
+                    .attr("width", xSubScale.bandwidth())
+                    .attr("height", 0)
+                    .attr("fill", d => colors[d.key])
+                    .attr("rx", 2)
+                    .on("mouseenter", function(event, d) {
+                        d3.select(this).attr("opacity", 0.8);
+                        tooltip.style("opacity", 1)
+                            .html(`<strong>${d.quarter} - ${keyLabels[d.key]}</strong><br>売上: ${d.value}万円`)
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 20) + "px");
+                    })
+                    .on("mouseleave", function() {
+                        d3.select(this).attr("opacity", 1);
+                        tooltip.style("opacity", 0);
+                    })
+                    .transition()
+                    .duration(500)
+                    .attr("y", d => yScale(d.value))
+                    .attr("height", d => height - yScale(d.value));
+            } else {
+                // ============================================
+                // 積み上げ棒グラフの描画
+                // ============================================
+                const layers = svg.selectAll(".layer")
+                    .data(series)               // series: スタックデータ
+                    .enter()
+                    .append("g")
+                    .attr("class", "layer")
+                    .attr("fill", d => colors[d.key]);
+
+                layers.selectAll("rect")
+                    .data(d => d)               // d: その部門の全四半期データ
+                    .enter()
+                    .append("rect")
+                    .attr("x", (d, i) => xScale(data[i].quarter))
+                    .attr("y", height)
+                    .attr("width", xScale.bandwidth())
+                    .attr("height", 0)
+                    .attr("rx", 2)
+                    .on("mouseenter", function(event, d) {
+                        const layer = d3.select(this.parentNode).datum();
+                        // d[0]: 積み上げの下端、d[1]: 積み上げの上端
+                        const value = currentType === "normalized"
+                            ? (d[1] - d[0]).toFixed(1) + "%"
+                            : (d[1] - d[0]).toFixed(0) + "万円";
+
+                        d3.select(this).attr("opacity", 0.8);
+                        tooltip.style("opacity", 1)
+                            .html(`<strong>${keyLabels[layer.key]}</strong><br>値: ${value}`)
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 20) + "px");
+                    })
+                    .on("mouseleave", function() {
+                        d3.select(this).attr("opacity", 1);
+                        tooltip.style("opacity", 0);
+                    })
+                    .transition()
+                    .duration(500)
+                    .attr("y", d => yScale(d[1]))                    // 上端のY座標
+                    .attr("height", d => yScale(d[0]) - yScale(d[1])); // 高さ = 下端 - 上端
+            }
+        }
+
+        // 初期表示（積み上げ棒グラフ）
+        updateChart();
+    </script>
+</body>
+</html>

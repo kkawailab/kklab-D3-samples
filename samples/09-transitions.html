@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>09 - トランジション（アニメーション）</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .controls {
+            text-align: center;
+            margin-top: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        .easing-label {
+            font-size: 12px;
+            fill: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>09 - トランジション（アニメーション）</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsのトランジション機能 - アニメーション、イージング関数、遅延</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>イージング関数の比較</h2>
+        <div id="easing-demo"></div>
+        <div class="controls">
+            <button onclick="playEasing()">アニメーション再生</button>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h2>棒グラフのアニメーション</h2>
+        <div id="bar-animation"></div>
+        <div class="controls">
+            <button onclick="animateBars()">棒グラフアニメーション</button>
+            <button onclick="shuffleData()">データをシャッフル</button>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h2>連続アニメーション</h2>
+        <div id="continuous-animation"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // トランジション（Transition）とは？
+        // ============================================
+        // トランジションは、要素の属性やスタイルを時間をかけて
+        // 滑らかに変化させるアニメーション機能です
+        //
+        // 基本的な使い方：
+        // selection
+        //   .transition()        // トランジションを開始
+        //   .duration(1000)      // 継続時間（ミリ秒）
+        //   .ease(d3.easeLinear) // イージング関数
+        //   .attr("x", 100);     // 最終的な値
+        //
+        // トランジションは現在の値から指定した値へ補間されます
+
+        // ============================================
+        // 1. イージング関数のデモ
+        // ============================================
+        // イージング関数は、アニメーションの「緩急」を制御します
+        // 同じ距離を移動しても、加速・減速のパターンが異なります
+
+        const easings = [
+            {name: "easeLinear", fn: d3.easeLinear},
+            {name: "easeQuad", fn: d3.easeQuad},
+            {name: "easeCubic", fn: d3.easeCubic},
+            {name: "easeSin", fn: d3.easeSin},
+            {name: "easeExp", fn: d3.easeExp},
+            {name: "easeCircle", fn: d3.easeCircle},
+            {name: "easeElastic", fn: d3.easeElastic},
+            {name: "easeBounce", fn: d3.easeBounce}
+            // 他にも easeBack, easeElasticIn, easeBounceOut など多数あります
+        ];
+
+        const margin1 = {top: 20, right: 30, bottom: 20, left: 120};
+        const width1 = 600 - margin1.left - margin1.right;
+        const height1 = 320 - margin1.top - margin1.bottom;
+
+        const svg1 = d3.select("#easing-demo")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        const yScale1 = d3.scaleBand()
+            .domain(easings.map(d => d.name))
+            .range([0, height1])
+            .padding(0.3);
+
+        // 背景の線（移動経路を示す）
+        svg1.selectAll(".track")
+            .data(easings)
+            .enter()
+            .append("line")
+            .attr("class", "track")
+            .attr("x1", 0)
+            .attr("x2", width1)
+            .attr("y1", d => yScale1(d.name) + yScale1.bandwidth() / 2)
+            .attr("y2", d => yScale1(d.name) + yScale1.bandwidth() / 2)
+            .attr("stroke", "#e0e0e0")
+            .attr("stroke-width", 2);
+
+        // イージング関数名のラベル
+        svg1.selectAll(".easing-label")
+            .data(easings)
+            .enter()
+            .append("text")
+            .attr("class", "easing-label")
+            .attr("x", -10)
+            .attr("y", d => yScale1(d.name) + yScale1.bandwidth() / 2)
+            .attr("text-anchor", "end")
+            .attr("dy", "0.35em")
+            .text(d => d.name);
+
+        // アニメーションする円
+        const circles = svg1.selectAll(".ball")
+            .data(easings)
+            .enter()
+            .append("circle")
+            .attr("class", "ball")
+            .attr("cx", 0)
+            .attr("cy", d => yScale1(d.name) + yScale1.bandwidth() / 2)
+            .attr("r", 12)
+            .attr("fill", (d, i) => d3.schemeCategory10[i % 10]);
+
+        // ============================================
+        // イージングアニメーションの再生
+        // ============================================
+        function playEasing() {
+            circles.attr("cx", 0)       // 開始位置に戻す
+                .transition()           // トランジション開始
+                .duration(2000)         // 2秒間かけて
+                .ease((d, i) => easings[i].fn)  // 各イージング関数を適用
+                .attr("cx", width1);    // 右端まで移動
+        }
+
+        // 初回実行（500ms後）
+        setTimeout(playEasing, 500);
+
+        // ============================================
+        // 2. 棒グラフのアニメーション
+        // ============================================
+        // delay() を使って順番にアニメーションさせることで
+        // 印象的な視覚効果を作れます
+
+        let barData = [40, 75, 30, 90, 55, 65, 85, 45];
+
+        const margin2 = {top: 20, right: 30, bottom: 40, left: 50};
+        const width2 = 600 - margin2.left - margin2.right;
+        const height2 = 280 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#bar-animation")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        const xScale2 = d3.scaleBand()
+            .domain(d3.range(barData.length))
+            .range([0, width2])
+            .padding(0.2);
+
+        const yScale2 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([height2, 0]);
+
+        // 軸
+        svg2.append("g")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(xScale2).tickFormat(d => `項目${d + 1}`));
+
+        svg2.append("g")
+            .attr("class", "y-axis")
+            .call(d3.axisLeft(yScale2));
+
+        // 棒グラフ（初期状態：高さ0）
+        svg2.selectAll(".bar")
+            .data(barData)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", (d, i) => xScale2(i))
+            .attr("y", height2)        // 下端から
+            .attr("width", xScale2.bandwidth())
+            .attr("height", 0)         // 高さ0から開始
+            .attr("fill", "#4a90d9")
+            .attr("rx", 3);
+
+        // ============================================
+        // 棒グラフを順番にアニメーション
+        // ============================================
+        function animateBars() {
+            svg2.selectAll(".bar")
+                .attr("y", height2)
+                .attr("height", 0)
+                .transition()
+                .duration(800)
+                .delay((d, i) => i * 100)  // 各棒を100ms遅延
+                .ease(d3.easeElastic.amplitude(1).period(0.4))  // 弾むような効果
+                .attr("y", d => yScale2(d))
+                .attr("height", d => height2 - yScale2(d));
+        }
+
+        // データをランダムに変更
+        function shuffleData() {
+            barData = barData.map(() => Math.floor(Math.random() * 80) + 20);
+
+            svg2.selectAll(".bar")
+                .data(barData)
+                .transition()
+                .duration(500)
+                .ease(d3.easeCubicOut)  // 減速する動き
+                .attr("y", d => yScale2(d))
+                .attr("height", d => height2 - yScale2(d))
+                .attr("fill", () => d3.schemeCategory10[Math.floor(Math.random() * 10)]);
+        }
+
+        // 初回実行
+        setTimeout(animateBars, 500);
+
+        // ============================================
+        // 3. 連続アニメーション
+        // ============================================
+        // トランジションを連鎖させて、ループするアニメーションを作成
+
+        const margin3 = {top: 20, right: 20, bottom: 20, left: 20};
+        const width3 = 600 - margin3.left - margin3.right;
+        const height3 = 200 - margin3.top - margin3.bottom;
+
+        const svg3 = d3.select("#continuous-animation")
+            .append("svg")
+            .attr("width", width3 + margin3.left + margin3.right)
+            .attr("height", height3 + margin3.top + margin3.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin3.left},${margin3.top})`);
+
+        // ============================================
+        // 波のようなアニメーション
+        // ============================================
+        const numCircles = 15;
+        const circleData = d3.range(numCircles);  // [0, 1, 2, ..., 14]
+
+        const waveCircles = svg3.selectAll(".wave-circle")
+            .data(circleData)
+            .enter()
+            .append("circle")
+            .attr("class", "wave-circle")
+            .attr("cx", (d, i) => (width3 / numCircles) * i + 30)
+            .attr("cy", height3 / 2)
+            .attr("r", 15)
+            .attr("fill", (d, i) => d3.interpolateRainbow(i / numCircles));
+
+        // 波のアニメーション関数
+        // トランジションを連鎖させてループを作成
+        function waveAnimation() {
+            waveCircles
+                .transition()
+                .duration(1000)
+                .delay((d, i) => i * 80)  // 各円を少しずつ遅らせて波を作る
+                .ease(d3.easeSin)
+                .attr("cy", 30)           // 上へ移動
+                .attr("r", 20)            // 大きくなる
+                .transition()             // 次のトランジションを連鎖
+                .duration(1000)
+                .ease(d3.easeSin)
+                .attr("cy", height3 - 30) // 下へ移動
+                .attr("r", 10)            // 小さくなる
+                .transition()             // さらに連鎖
+                .duration(1000)
+                .ease(d3.easeSin)
+                .attr("cy", height3 / 2)  // 中央に戻る
+                .attr("r", 15)
+                .on("end", (d, i) => {    // トランジション終了時のコールバック
+                    // 最後の円のアニメーションが終わったら再開
+                    if (i === numCircles - 1) {
+                        waveAnimation();
+                    }
+                });
+        }
+
+        waveAnimation();
+
+        // ============================================
+        // 回転アニメーション
+        // ============================================
+        // attrTween を使った高度なアニメーション
+
+        const rotatingGroup = svg3.append("g")
+            .attr("transform", `translate(${width3 - 60}, ${height3 / 2})`);
+
+        // 円形に配置された小さな円
+        const orbitCircles = d3.range(6);
+
+        orbitCircles.forEach((d, i) => {
+            const angle = (i / 6) * Math.PI * 2;  // 360度を6等分
+            rotatingGroup.append("circle")
+                .attr("cx", 30 * Math.cos(angle))
+                .attr("cy", 30 * Math.sin(angle))
+                .attr("r", 8)
+                .attr("fill", d3.schemeCategory10[i]);
+        });
+
+        // 回転アニメーション関数
+        function rotateAnimation() {
+            rotatingGroup
+                .transition()
+                .duration(2000)
+                .ease(d3.easeLinear)       // 等速回転
+                .attrTween("transform", () => {
+                    // attrTween は補間関数を返す
+                    // t は 0 から 1 まで変化する進行度
+                    return t => `translate(${width3 - 60}, ${height3 / 2}) rotate(${t * 360})`;
+                })
+                .on("end", rotateAnimation);  // 終了したら再開
+        }
+
+        rotateAnimation();
+    </script>
+</body>
+</html>

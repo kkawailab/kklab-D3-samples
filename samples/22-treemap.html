@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>22 - ツリーマップ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .cell {
+            cursor: pointer;
+        }
+        .cell:hover rect {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .breadcrumb {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .breadcrumb span {
+            cursor: pointer;
+            color: #4a90d9;
+        }
+        .breadcrumb span:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>22 - ツリーマップ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.treemap()を使った階層データの可視化、ドリルダウン、サイズと色によるエンコーディング</p>
+        <p>セルをクリックするとドリルダウンできます。</p>
+    </div>
+
+    <div class="chart-container">
+        <div class="breadcrumb" id="breadcrumb">
+            <span onclick="zoomOut()">ルート</span>
+        </div>
+        <div id="treemap"></div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // ツリーマップ（Treemap）とは？
+        // ============================================
+        // ツリーマップは、階層構造を持つデータを入れ子の長方形で表現する可視化手法です。
+        // 各長方形の面積は、データの値（この例では予算額）に比例します。
+        //
+        // 特徴：
+        // - 階層構造全体を一目で把握できる
+        // - 面積で値の大小を直感的に比較できる
+        // - ドリルダウンで詳細を掘り下げられる
+        // - スペースを効率的に使える
+        //
+        // このサンプルでは、会社の部門別予算を可視化し、
+        // クリックでドリルダウンして詳細を見ることができます。
+        // ============================================
+
+        // ============================================
+        // 階層データの定義
+        // ============================================
+        // 階層データ（会社の組織構造と予算）
+        // - name: 部門名
+        // - children: 子要素（下位の部門）
+        // - value: 末端ノードの値（予算額、単位：万円）
+        const data = {
+            name: "会社",
+            children: [
+                {
+                    name: "開発部",
+                    children: [
+                        {
+                            name: "フロントエンド",
+                            children: [
+                                {name: "Web開発", value: 3500},
+                                {name: "モバイル開発", value: 2800},
+                                {name: "UI/UX", value: 1500}
+                            ]
+                        },
+                        {
+                            name: "バックエンド",
+                            children: [
+                                {name: "API開発", value: 4000},
+                                {name: "データベース", value: 2500},
+                                {name: "インフラ", value: 3000}
+                            ]
+                        },
+                        {
+                            name: "QA",
+                            children: [
+                                {name: "テスト自動化", value: 1800},
+                                {name: "手動テスト", value: 1200}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "営業部",
+                    children: [
+                        {
+                            name: "国内営業",
+                            children: [
+                                {name: "東日本", value: 4500},
+                                {name: "西日本", value: 3800}
+                            ]
+                        },
+                        {
+                            name: "海外営業",
+                            children: [
+                                {name: "アジア", value: 2500},
+                                {name: "欧米", value: 3200}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "管理部",
+                    children: [
+                        {
+                            name: "人事",
+                            children: [
+                                {name: "採用", value: 1500},
+                                {name: "研修", value: 1000}
+                            ]
+                        },
+                        {
+                            name: "経理",
+                            children: [
+                                {name: "財務", value: 1200},
+                                {name: "経費管理", value: 800}
+                            ]
+                        },
+                        {
+                            name: "総務",
+                            children: [
+                                {name: "施設管理", value: 900},
+                                {name: "備品管理", value: 500}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        // ============================================
+        // 設定とカラースケールの定義
+        // ============================================
+        const width = 900;
+        const height = 600;
+
+        // 序数スケール：部門名から色へのマッピング
+        const color = d3.scaleOrdinal()
+            .domain(["開発部", "営業部", "管理部"])
+            .range(["#3498db", "#2ecc71", "#f39c12"]);
+
+        // ============================================
+        // SVG要素の作成
+        // ============================================
+        const svg = d3.select("#treemap")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // 階層データ構造の作成
+        // ============================================
+        // d3.hierarchy()で階層データをD3用のツリー構造に変換
+        const root = d3.hierarchy(data)
+            .sum(d => d.value)                      // 各ノードの値を合計（親は子の合計値を持つ）
+            .sort((a, b) => b.value - a.value);     // 値の大きい順にソート
+
+        // ============================================
+        // ツリーマップレイアウトの設定
+        // ============================================
+        // d3.treemap()で長方形の配置を計算
+        const treemap = d3.treemap()
+            .size([width, height])              // 全体のサイズ
+            .paddingTop(20)                     // 上部に余白（ラベル用）
+            .paddingRight(3)                    // 右側の余白
+            .paddingBottom(3)                   // 下側の余白
+            .paddingLeft(3)                     // 左側の余白
+            .round(true);                       // 座標を整数に丸める
+
+        let currentRoot = root;                 // 現在表示中のルートノード
+        let breadcrumbPath = [root];            // パンくずリストの履歴
+
+        // ============================================
+        // ヘルパー関数
+        // ============================================
+        // ノードの親カテゴリ（トップレベルの部門）を取得
+        function getParentCategory(node) {
+            let current = node;
+            // 親をたどってトップレベルの部門まで遡る
+            while (current.parent && current.parent.parent) {
+                current = current.parent;
+            }
+            return current.data.name;
+        }
+
+        // ============================================
+        // レンダリング関数
+        // ============================================
+        // 指定されたノードをルートとしてツリーマップを描画
+        function render(rootNode) {
+            // ツリーマップレイアウトを計算（各ノードにx0, y0, x1, y1が設定される）
+            treemap(rootNode);
+
+            // 既存のSVG要素をクリア
+            svg.selectAll("*").remove();
+
+            // ============================================
+            // セル（各部門の長方形）の描画
+            // ============================================
+            const cell = svg.selectAll("g")
+                .data(rootNode.children || [rootNode])      // 子要素をデータにバインド
+                .enter()
+                .append("g")
+                .attr("class", "cell")
+                .attr("transform", d => `translate(${d.x0},${d.y0})`);  // 位置を設定
+
+            // 長方形を描画
+            cell.append("rect")
+                .attr("width", d => Math.max(0, d.x1 - d.x0))   // 幅を計算
+                .attr("height", d => Math.max(0, d.y1 - d.y0))  // 高さを計算
+                .attr("fill", d => {
+                    // 親カテゴリの色を取得
+                    const category = getParentCategory(d);
+                    const baseColor = d3.color(color(category));
+                    // 階層の深さに応じて明るさを調整
+                    const depth = d.depth - currentRoot.depth;
+                    return baseColor.brighter(depth * 0.3);
+                })
+                .attr("stroke", "white")
+                .attr("stroke-width", 1)
+                .on("click", (event, d) => {
+                    // 子要素がある場合のみドリルダウン
+                    if (d.children) {
+                        zoomIn(d);
+                    }
+                })
+                .on("mouseenter", (event, d) => {
+                    // ツールチップを表示
+                    const total = currentRoot.value;
+                    const percentage = ((d.value / total) * 100).toFixed(1);
+                    tooltip.style("opacity", 1)
+                        .html(`
+                            <strong>${d.data.name}</strong><br>
+                            予算: ¥${d.value.toLocaleString()}万<br>
+                            割合: ${percentage}%
+                        `)
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 20) + "px");
+                })
+                .on("mouseleave", () => {
+                    tooltip.style("opacity", 0);
+                });
+
+            // ============================================
+            // テキストラベルの描画
+            // ============================================
+            // 部門名を表示
+            cell.append("text")
+                .attr("x", 5)
+                .attr("y", 15)
+                .attr("font-size", d => {
+                    const w = d.x1 - d.x0;
+                    return w > 100 ? "12px" : "10px";   // 幅に応じてフォントサイズを調整
+                })
+                .attr("font-weight", "bold")
+                .attr("fill", "#333")
+                .text(d => {
+                    const w = d.x1 - d.x0;
+                    if (w < 50) return "";              // 幅が小さい場合は表示しない
+                    return d.data.name;
+                });
+
+            // 予算額を表示
+            cell.append("text")
+                .attr("x", 5)
+                .attr("y", 32)
+                .attr("font-size", "11px")
+                .attr("fill", "#666")
+                .text(d => {
+                    const w = d.x1 - d.x0;
+                    const h = d.y1 - d.y0;
+                    // 長方形が十分な大きさの場合のみ表示
+                    if (w < 60 || h < 45) return "";
+                    return `¥${d.value.toLocaleString()}万`;
+                });
+
+            // 子要素の数を右上に表示
+            cell.filter(d => d.children)        // 子要素を持つノードのみ
+                .append("text")
+                .attr("x", d => (d.x1 - d.x0) - 5)
+                .attr("y", 15)
+                .attr("text-anchor", "end")
+                .attr("font-size", "10px")
+                .attr("fill", "#666")
+                .text(d => `(${d.children.length})`);
+        }
+
+        // ============================================
+        // ズーム機能（ドリルダウン）
+        // ============================================
+        // 指定されたノードにズームイン
+        function zoomIn(node) {
+            currentRoot = node;                 // 現在のルートを更新
+            breadcrumbPath.push(node);          // パンくずリストに追加
+            updateBreadcrumb();                 // パンくずリストを更新
+            render(node);                       // 再描画
+        }
+
+        // ルートに戻る（ズームアウト）
+        function zoomOut() {
+            if (breadcrumbPath.length > 1) {
+                breadcrumbPath.pop();           // 最後の要素を削除
+                currentRoot = breadcrumbPath[breadcrumbPath.length - 1];
+                updateBreadcrumb();
+                render(currentRoot);
+            }
+        }
+
+        // 特定の階層にズーム
+        function zoomToLevel(index) {
+            breadcrumbPath = breadcrumbPath.slice(0, index + 1);    // 指定位置までスライス
+            currentRoot = breadcrumbPath[breadcrumbPath.length - 1];
+            updateBreadcrumb();
+            render(currentRoot);
+        }
+
+        // ============================================
+        // パンくずリストの更新
+        // ============================================
+        function updateBreadcrumb() {
+            const breadcrumb = d3.select("#breadcrumb");
+            breadcrumb.html("");                // 既存の内容をクリア
+
+            // パンくずリストの各レベルを表示
+            breadcrumbPath.forEach((node, i) => {
+                // 区切り文字を追加（最初以外）
+                if (i > 0) {
+                    breadcrumb.append("span")
+                        .style("color", "#999")
+                        .style("margin", "0 5px")
+                        .text(" > ");
+                }
+
+                // 部門名を表示
+                breadcrumb.append("span")
+                    .text(node.data.name)
+                    // 現在のレベルは太字、それ以外は通常
+                    .style("font-weight", i === breadcrumbPath.length - 1 ? "bold" : "normal")
+                    // 現在のレベルは黒、それ以外は青（クリック可能を示す）
+                    .style("color", i === breadcrumbPath.length - 1 ? "#333" : "#4a90d9")
+                    .on("click", () => zoomToLevel(i));     // クリックでそのレベルにズーム
+            });
+        }
+
+        // ============================================
+        // 初期表示
+        // ============================================
+        render(root);
+        updateBreadcrumb();
+    </script>
+</body>
+</html>

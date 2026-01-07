@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>04 - スケール（Scale）</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            display: block;
+            margin: 0 auto;
+        }
+        .scale-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        code {
+            background: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>04 - スケール（Scale）</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsのスケール機能 - データ値を視覚的な値（位置、サイズ、色）に変換</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>1. Linear Scale（線形スケール）</h2>
+        <div id="chart-linear"></div>
+        <div class="scale-info">
+            <code>d3.scaleLinear().domain([0, 100]).range([0, 500])</code>
+            <br>データ値 0〜100 を ピクセル 0〜500 に変換
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h2>2. Band Scale（バンドスケール）</h2>
+        <div id="chart-band"></div>
+        <div class="scale-info">
+            <code>d3.scaleBand().domain(categories).range([0, 500]).padding(0.2)</code>
+            <br>カテゴリを等間隔のバンドに配置
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h2>3. Ordinal Scale（序数スケール）- 色</h2>
+        <div id="chart-ordinal"></div>
+        <div class="scale-info">
+            <code>d3.scaleOrdinal(d3.schemeCategory10)</code>
+            <br>カテゴリに色を割り当て
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h2>4. Sqrt Scale（平方根スケール）</h2>
+        <div id="chart-sqrt"></div>
+        <div class="scale-info">
+            <code>d3.scaleSqrt().domain([0, 1000]).range([5, 50])</code>
+            <br>面積が値に比例するように半径を計算
+        </div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // スケール（Scale）とは？
+        // ============================================
+        // スケールは、データの値を視覚的な値に変換する関数です
+        // 例：売上データ（0〜100万円）→ 棒グラフの幅（0〜500px）
+        //
+        // 基本的な概念：
+        // - domain（定義域）: 入力データの範囲
+        // - range（値域）: 出力（ピクセル、色など）の範囲
+        //
+        // スケール関数を呼び出すと、自動的に変換が行われます
+        // 例: scale(50) → domain内の50がrangeの対応する値に変換
+
+        // ============================================
+        // 1. Linear Scale（線形スケール）
+        // ============================================
+        // 最も基本的なスケールで、入力と出力が線形（比例）の関係
+        // 数値データの可視化に広く使用されます
+
+        const linearData = [10, 25, 45, 60, 80, 95];
+
+        // scaleLinear() で線形スケールを作成
+        const linearScale = d3.scaleLinear()
+            .domain([0, 100])   // 入力: 0〜100の範囲のデータ
+            .range([0, 500]);   // 出力: 0〜500pxの範囲に変換
+
+        // 使用例: linearScale(50) → 250 （中間値は中間に）
+        // 使用例: linearScale(100) → 500 （最大値は最大に）
+
+        const svg1 = d3.select("#chart-linear")
+            .append("svg")
+            .attr("width", 600)
+            .attr("height", 120);
+
+        // 棒グラフを描画（幅をスケールで決定）
+        svg1.selectAll("rect")
+            .data(linearData)
+            .enter()
+            .append("rect")
+            .attr("x", 50)
+            .attr("y", (d, i) => i * 18 + 10)
+            .attr("width", d => linearScale(d))  // スケールで変換！
+            .attr("height", 15)
+            .attr("fill", "#4a90d9");
+
+        // 変換結果を表示
+        svg1.selectAll("text")
+            .data(linearData)
+            .enter()
+            .append("text")
+            .attr("x", d => linearScale(d) + 55)
+            .attr("y", (d, i) => i * 18 + 22)
+            .attr("font-size", "12px")
+            .text(d => `${d} → ${linearScale(d).toFixed(0)}px`);
+
+        // ============================================
+        // 2. Band Scale（バンドスケール）
+        // ============================================
+        // カテゴリデータを等間隔のバンド（帯）に配置するスケール
+        // 棒グラフのX軸などに使用されます
+
+        const bandData = [
+            {name: "りんご", value: 30},
+            {name: "バナナ", value: 45},
+            {name: "オレンジ", value: 25},
+            {name: "ぶどう", value: 55},
+            {name: "いちご", value: 40}
+        ];
+
+        // scaleBand() でバンドスケールを作成
+        const bandScale = d3.scaleBand()
+            .domain(bandData.map(d => d.name))  // 入力: カテゴリ名の配列
+            .range([50, 550])                    // 出力: 50〜550pxの範囲に配置
+            .padding(0.2);                       // バンド間の余白（0〜1）
+
+        // バンドスケールの便利なメソッド:
+        // bandScale("りんご") → そのカテゴリの開始位置（x座標）
+        // bandScale.bandwidth() → 各バンドの幅
+
+        // 高さ用のLinear Scale
+        const heightScale = d3.scaleLinear()
+            .domain([0, 60])
+            .range([0, 100]);
+
+        const svg2 = d3.select("#chart-band")
+            .append("svg")
+            .attr("width", 600)
+            .attr("height", 160);
+
+        // 棒グラフを描画
+        svg2.selectAll("rect")
+            .data(bandData)
+            .enter()
+            .append("rect")
+            .attr("x", d => bandScale(d.name))        // バンドの開始位置
+            .attr("y", d => 130 - heightScale(d.value))
+            .attr("width", bandScale.bandwidth())      // バンドの幅
+            .attr("height", d => heightScale(d.value))
+            .attr("fill", "#2ecc71");
+
+        // カテゴリ名のラベル
+        svg2.selectAll("text.label")
+            .data(bandData)
+            .enter()
+            .append("text")
+            .attr("class", "label")
+            .attr("x", d => bandScale(d.name) + bandScale.bandwidth() / 2)  // 中央に配置
+            .attr("y", 150)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text(d => d.name);
+
+        // 値のラベル
+        svg2.selectAll("text.value")
+            .data(bandData)
+            .enter()
+            .append("text")
+            .attr("class", "value")
+            .attr("x", d => bandScale(d.name) + bandScale.bandwidth() / 2)
+            .attr("y", d => 125 - heightScale(d.value))
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .text(d => d.value);
+
+        // ============================================
+        // 3. Ordinal Scale（序数スケール）- 色
+        // ============================================
+        // カテゴリデータを離散的な値（色など）にマッピングするスケール
+        // 特に色分けに便利で、D3.jsは多くの配色セットを提供しています
+
+        const categories = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+
+        // scaleOrdinal() で序数スケールを作成
+        // d3.schemeCategory10 は10色のカラーパレット
+        const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+        // 使用例: colorScale("A") → "#1f77b4"（青）
+        // 使用例: colorScale("B") → "#ff7f0e"（オレンジ）
+
+        const svg3 = d3.select("#chart-ordinal")
+            .append("svg")
+            .attr("width", 600)
+            .attr("height", 80);
+
+        svg3.selectAll("rect")
+            .data(categories)
+            .enter()
+            .append("rect")
+            .attr("x", (d, i) => i * 55 + 25)
+            .attr("y", 10)
+            .attr("width", 50)
+            .attr("height", 40)
+            .attr("fill", d => colorScale(d))  // カテゴリに応じた色！
+            .attr("rx", 5);  // 角丸
+
+        svg3.selectAll("text")
+            .data(categories)
+            .enter()
+            .append("text")
+            .attr("x", (d, i) => i * 55 + 50)
+            .attr("y", 65)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text(d => d);
+
+        // ============================================
+        // 4. Sqrt Scale（平方根スケール）
+        // ============================================
+        // 入力値の平方根に比例する出力を返すスケール
+        // 円の半径を設定する際に特に重要です
+        //
+        // なぜ平方根？ → 円の面積は π * r² なので、
+        // 面積をデータ値に比例させるには半径を√(値)に比例させる必要がある
+
+        const sqrtData = [100, 250, 400, 600, 800, 1000];
+
+        // scaleSqrt() で平方根スケールを作成
+        const sqrtScale = d3.scaleSqrt()
+            .domain([0, 1000])  // 入力: 0〜1000のデータ
+            .range([5, 50]);    // 出力: 半径5〜50px
+
+        const svg4 = d3.select("#chart-sqrt")
+            .append("svg")
+            .attr("width", 600)
+            .attr("height", 140);
+
+        // 円を描画（半径をスケールで決定）
+        svg4.selectAll("circle")
+            .data(sqrtData)
+            .enter()
+            .append("circle")
+            .attr("cx", (d, i) => i * 95 + 60)
+            .attr("cy", 60)
+            .attr("r", d => sqrtScale(d))  // 平方根スケールで変換！
+            .attr("fill", "#e74c3c")
+            .attr("opacity", 0.7);
+
+        // 変換結果を表示
+        svg4.selectAll("text")
+            .data(sqrtData)
+            .enter()
+            .append("text")
+            .attr("x", (d, i) => i * 95 + 60)
+            .attr("y", 125)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .text(d => `${d} → r=${sqrtScale(d).toFixed(1)}`);
+    </script>
+</body>
+</html>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>27 - 世界地図</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+            background: #e3f2fd;
+        }
+        .country {
+            stroke: #fff;
+            stroke-width: 0.5px;
+            cursor: pointer;
+        }
+        .country:hover {
+            stroke: #333;
+            stroke-width: 1.5px;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        select, button {
+            padding: 8px 16px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #4a90d9;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255,255,255,0.9);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+        .legend-color {
+            width: 20px;
+            height: 12px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>27 - 世界地図</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.geoを使った地理データの可視化、投影法、コロプレス地図</p>
+        <p>国にホバーすると情報が表示されます。ドラッグで回転、スクロールでズームできます。</p>
+    </div>
+
+    <div class="chart-container">
+        <div class="controls">
+            <select id="projection-select" onchange="changeProjection()">
+                <option value="orthographic">正射図法（Orthographic）</option>
+                <option value="mercator">メルカトル図法（Mercator）</option>
+                <option value="equalEarth">等積地球図法（Equal Earth）</option>
+                <option value="naturalEarth">自然地球図法（Natural Earth）</option>
+            </select>
+            <button onclick="resetView()">表示をリセット</button>
+        </div>
+        <div id="world-map" style="position: relative;"></div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- TopoJSON ライブラリ（地理データの圧縮フォーマット）-->
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <script>
+        // ============================================
+        // 世界地図（World Map）とは？
+        // ============================================
+        // D3.jsの地理投影機能（d3.geo）を使用して世界地図を作成します
+        // 地理データ（GeoJSON/TopoJSON）を様々な投影法でSVGパスに変換できます
+        //
+        // 主要なコンポーネント：
+        // 1. d3.geoProjection() - 地理座標を平面座標に変換（投影法）
+        // 2. d3.geoPath() - 投影されたデータをSVGパスに変換
+        // 3. TopoJSON - 地理データの圧縮フォーマット
+        //
+        // 投影法の種類：
+        // - Orthographic（正射図法）: 球体として表示
+        // - Mercator（メルカトル図法）: 航海用の古典的投影
+        // - Equal Earth（等積地球図法）: 面積を正確に保つ
+        // - Natural Earth（自然地球図法）: 視覚的にバランスの取れた投影
+
+        // ============================================
+        // 基本設定
+        // ============================================
+
+        const width = 900;
+        const height = 600;
+
+        // ============================================
+        // サンプルデータ
+        // ============================================
+
+        // サンプルGDP データ（億ドル単位）
+        // 実際のプロジェクトでは外部APIやデータファイルから取得
+        const gdpData = {
+            "USA": 25000, "CHN": 18000, "JPN": 4900, "DEU": 4200, "GBR": 3100,
+            "IND": 3500, "FRA": 2900, "ITA": 2100, "BRA": 1900, "CAN": 2100,
+            "RUS": 1800, "KOR": 1700, "AUS": 1500, "ESP": 1400, "MEX": 1300,
+            "IDN": 1200, "NLD": 1000, "SAU": 900, "TUR": 800, "CHE": 800
+        };
+
+        // ============================================
+        // 投影法の定義
+        // ============================================
+
+        // 複数の投影法を定義し、切り替え可能にする
+        const projections = {
+            // 正射図法: 地球を球体として表示（宇宙から見た視点）
+            orthographic: d3.geoOrthographic()
+                .scale(280)                        // 拡大率
+                .center([0, 0])                    // 中心点（経度, 緯度）
+                .rotate([0, 0])                    // 回転（λ, φ, γ）
+                .translate([width / 2, height / 2]), // SVG上の位置
+
+            // メルカトル図法: 角度を正確に保つ（航海図に適している）
+            mercator: d3.geoMercator()
+                .scale(140)
+                .center([0, 20])                   // 少し北寄りに中心を設定
+                .translate([width / 2, height / 2]),
+
+            // 等積地球図法: 面積を正確に保つ
+            equalEarth: d3.geoEqualEarth()
+                .scale(180)
+                .center([0, 0])
+                .translate([width / 2, height / 2]),
+
+            // 自然地球図法: 視覚的にバランスの取れた投影
+            naturalEarth: d3.geoNaturalEarth1()
+                .scale(180)
+                .center([0, 0])
+                .translate([width / 2, height / 2])
+        };
+
+        // 現在の投影法を保持
+        let currentProjection = projections.orthographic;
+        let currentProjectionName = "orthographic";
+
+        // ============================================
+        // SVGとパス生成器の設定
+        // ============================================
+
+        const svg = d3.select("#world-map")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        // d3.geoPath(): 地理データ（GeoJSON）をSVGパス文字列に変換
+        const path = d3.geoPath().projection(currentProjection);
+
+        // カラースケール: GDPの値に応じて色を決定（コロプレスマップ）
+        const colorScale = d3.scaleSequential(d3.interpolateYlOrRd)
+            .domain([0, 25000]);  // GDPの範囲
+
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // 背景と経緯線の描画
+        // ============================================
+
+        // 地球の背景円（正射図法用の海の表現）
+        const globe = svg.append("circle")
+            .attr("cx", width / 2)
+            .attr("cy", height / 2)
+            .attr("r", 280)              // 投影の半径と同じ
+            .attr("fill", "#a8d5f7")     // 海の色
+            .attr("stroke", "#69b3e7");
+
+        // 国のグループ（後で国のパスを追加）
+        const countries = svg.append("g").attr("class", "countries");
+
+        // 経緯線（graticule）: 地図上の緯線・経線のグリッド
+        const graticule = d3.geoGraticule();
+        const graticulePath = svg.append("path")
+            .datum(graticule())          // グラティキュールのGeoJSONデータ
+            .attr("fill", "none")
+            .attr("stroke", "#ccc")
+            .attr("stroke-width", 0.5)
+            .attr("d", path);            // パス生成器で描画
+
+        // 簡略化した世界地図データ（実際のプロジェクトではTopoJSONをロード）
+        // ここではシンプルな形状で代替
+        const simpleCountries = [
+            {name: "日本", id: "JPN", coordinates: [[130, 30], [145, 30], [145, 45], [130, 45]]},
+            {name: "中国", id: "CHN", coordinates: [[75, 20], [135, 20], [135, 55], [75, 55]]},
+            {name: "アメリカ", id: "USA", coordinates: [[-125, 25], [-65, 25], [-65, 50], [-125, 50]]},
+            {name: "ブラジル", id: "BRA", coordinates: [[-75, -35], [-35, -35], [-35, 5], [-75, 5]]},
+            {name: "オーストラリア", id: "AUS", coordinates: [[115, -40], [155, -40], [155, -10], [115, -10]]},
+            {name: "ロシア", id: "RUS", coordinates: [[30, 45], [180, 45], [180, 80], [30, 80]]},
+            {name: "インド", id: "IND", coordinates: [[70, 5], [95, 5], [95, 35], [70, 35]]},
+            {name: "カナダ", id: "CAN", coordinates: [[-140, 50], [-55, 50], [-55, 75], [-140, 75]]}
+        ];
+
+        // GeoJSONに変換
+        const geoJson = {
+            type: "FeatureCollection",
+            features: simpleCountries.map(c => ({
+                type: "Feature",
+                properties: {name: c.name, id: c.id},
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [[...c.coordinates, c.coordinates[0]]]
+                }
+            }))
+        };
+
+        // ============================================
+        // TopoJSONデータのロードと地図の描画
+        // ============================================
+
+        // 実際のTopoJSONファイルをCDNから読み込み
+        d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+            .then(world => {
+                // TopoJSONをGeoJSONに変換
+                // topojson.feature(): TopoJSONオブジェクトをGeoJSON Featureに変換
+                const countriesData = topojson.feature(world, world.objects.countries);
+
+                // 各国のパスを描画
+                countries.selectAll("path")
+                    .data(countriesData.features)  // features: 各国のGeoJSONデータ
+                    .enter()
+                    .append("path")
+                    .attr("class", "country")
+                    .attr("d", path)               // パス生成器で国境線を描画
+                    .attr("fill", d => {
+                        // d: GeoJSON Feature（geometry, properties, idを含む）
+                        // GDP データに基づいて色を決定（コロプレスマップ）
+                        const gdp = gdpData[d.id] || gdpData[d.properties?.name];
+                        return gdp ? colorScale(gdp) : "#ddd";  // データがない場合は灰色
+                    })
+                    .on("mouseenter", function(event, d) {
+                        // この国を前面に移動
+                        d3.select(this).raise();
+
+                        const name = d.properties?.name || "不明";
+                        const gdp = gdpData[d.id] || gdpData[name];
+
+                        // ツールチップを表示
+                        tooltip.style("opacity", 1)
+                            .html(`
+                                <strong>${name}</strong><br>
+                                ${gdp ? `GDP: ${gdp.toLocaleString()}億ドル` : "データなし"}
+                            `)
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 20) + "px");
+                    })
+                    .on("mouseleave", function() {
+                        tooltip.style("opacity", 0);
+                    });
+
+                // ============================================
+                // インタラクション: ドラッグで回転
+                // ============================================
+
+                // ドラッグで地球を回転（正射図法のみ）
+                let rotate = [0, 0];  // [経度, 緯度] の回転角度
+                const drag = d3.drag()
+                    .on("drag", function(event) {
+                        // event.dx, event.dy: マウスの移動量（ピクセル）
+                        if (currentProjectionName === "orthographic") {
+                            rotate[0] += event.dx * 0.5;   // 経度方向の回転
+                            rotate[1] -= event.dy * 0.5;   // 緯度方向の回転
+                            // 緯度は-90度から90度の範囲に制限
+                            rotate[1] = Math.max(-90, Math.min(90, rotate[1]));
+                            currentProjection.rotate(rotate);
+                            updatePaths();  // パスを再描画
+                        }
+                    });
+
+                svg.call(drag);  // SVGにドラッグ動作を適用
+
+                // ============================================
+                // インタラクション: ズーム
+                // ============================================
+
+                // ズーム機能を追加
+                const zoom = d3.zoom()
+                    .scaleExtent([0.5, 8])  // ズーム倍率の範囲（0.5倍から8倍）
+                    .on("zoom", function(event) {
+                        // event.transform: ズーム変換（translate, scale）
+                        countries.attr("transform", event.transform);
+                        graticulePath.attr("transform", event.transform);
+                    });
+
+                svg.call(zoom);  // SVGにズーム機能を適用
+            })
+            .catch(error => {
+                console.log("TopoJSONのロードに失敗、簡略データを使用");
+
+                // 簡略データで表示
+                countries.selectAll("path")
+                    .data(geoJson.features)
+                    .enter()
+                    .append("path")
+                    .attr("class", "country")
+                    .attr("d", path)
+                    .attr("fill", d => {
+                        const gdp = gdpData[d.properties.id];
+                        return gdp ? colorScale(gdp) : "#9e9e9e";
+                    })
+                    .on("mouseenter", function(event, d) {
+                        tooltip.style("opacity", 1)
+                            .html(`
+                                <strong>${d.properties.name}</strong><br>
+                                GDP: ${gdpData[d.properties.id]?.toLocaleString() || "N/A"}億ドル
+                            `)
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 20) + "px");
+                    })
+                    .on("mouseleave", () => tooltip.style("opacity", 0));
+            });
+
+        // ============================================
+        // ユーティリティ関数
+        // ============================================
+
+        // パスを再描画する関数
+        function updatePaths() {
+            countries.selectAll("path").attr("d", path);  // 全ての国のパスを更新
+            graticulePath.attr("d", path);                // 経緯線を更新
+        }
+
+        // 投影法を変更する関数
+        function changeProjection() {
+            const select = document.getElementById("projection-select");
+            currentProjectionName = select.value;
+            currentProjection = projections[currentProjectionName];
+            path.projection(currentProjection);  // パス生成器に新しい投影法を設定
+
+            // 地球の背景円は正射図法の時のみ表示
+            globe.style("display", currentProjectionName === "orthographic" ? "block" : "none");
+
+            updatePaths();  // パスを再描画
+        }
+
+        // 表示をリセットする関数
+        function resetView() {
+            // 正射図法の場合は回転をリセット
+            if (currentProjectionName === "orthographic") {
+                currentProjection.rotate([0, 0]);
+            }
+            // ズームをリセット（アニメーション付き）
+            svg.transition().duration(500).call(
+                d3.zoom().transform,
+                d3.zoomIdentity  // 変換なし（元の状態）
+            );
+            updatePaths();
+        }
+
+        // 凡例
+        const legend = d3.select("#world-map")
+            .append("div")
+            .attr("class", "legend");
+
+        legend.append("div").style("font-weight", "bold").text("GDP（億ドル）");
+
+        [0, 5000, 10000, 15000, 20000, 25000].forEach((val, i, arr) => {
+            if (i === arr.length - 1) return;
+            const item = legend.append("div").attr("class", "legend-item");
+            item.append("div")
+                .attr("class", "legend-color")
+                .style("background", colorScale(val));
+            item.append("span").text(`${val.toLocaleString()} - ${arr[i+1].toLocaleString()}`);
+        });
+    </script>
+</body>
+</html>

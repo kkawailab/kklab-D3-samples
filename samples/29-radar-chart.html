@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>29 - レーダーチャート</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .radar-area {
+            fill-opacity: 0.3;
+            stroke-width: 2;
+        }
+        .radar-area:hover {
+            fill-opacity: 0.5;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .legend-item:hover {
+            opacity: 0.8;
+        }
+        .legend-color {
+            width: 30px;
+            height: 4px;
+            border-radius: 2px;
+        }
+        .charts-row {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>29 - レーダーチャート</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> 多角形のレーダーチャート作成、複数データの比較、アニメーション</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>スキル比較レーダーチャート</h2>
+        <div id="skills-radar"></div>
+        <div class="legend" id="skills-legend"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>製品評価比較</h2>
+        <div class="charts-row">
+            <div id="product-radar-1"></div>
+            <div id="product-radar-2"></div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // レーダーチャート（Radar Chart / Spider Chart）とは？
+        // ============================================
+        // レーダーチャートは、複数の評価軸を持つデータを多角形で可視化するチャートです
+        // 各軸が中心から放射状に配置され、データの値に応じて多角形の頂点が決まります
+        //
+        // 主な用途：
+        // - スキル評価の可視化（技術スキル、能力評価など）
+        // - 製品比較（複数の評価項目を一度に比較）
+        // - パフォーマンス分析（多次元データの俯瞰）
+        //
+        // D3.jsでの実装：
+        // 1. 中心点から放射状に軸を配置
+        // 2. 各軸上にスケールを設定
+        // 3. データポイントを接続して多角形（polygon）を描画
+        // 4. 複数のデータセットを重ねて比較
+
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // データの準備
+        // ============================================
+
+        // スキル評価の軸（各スキルの名前）
+        const skillAxes = [
+            "JavaScript", "TypeScript", "React", "Node.js",
+            "Python", "SQL", "AWS", "コミュニケーション"
+        ];
+
+        // 各エンジニアのスキルデータ（0-100のスコア）
+        const skillData = [
+            {
+                name: "エンジニアA",
+                color: "#e74c3c",
+                values: [90, 85, 88, 75, 60, 70, 65, 80]  // 各軸のスコア（skillAxesの順）
+            },
+            {
+                name: "エンジニアB",
+                color: "#3498db",
+                values: [75, 70, 65, 85, 90, 88, 80, 70]
+            },
+            {
+                name: "エンジニアC",
+                color: "#2ecc71",
+                values: [80, 75, 70, 70, 75, 75, 90, 85]
+            }
+        ];
+
+        // ============================================
+        // レーダーチャート作成関数
+        // ============================================
+
+        // 汎用的なレーダーチャート作成関数
+        // selector: チャートを配置するセレクタ
+        // axes: 軸の名前の配列
+        // data: データの配列（各要素は name, color, values を持つ）
+        // config: オプション設定（width, height, margin, levels, maxValue）
+        function createRadarChart(selector, axes, data, config = {}) {
+            const width = config.width || 500;
+            const height = config.height || 500;
+            const margin = config.margin || 80;
+            const radius = Math.min(width, height) / 2 - margin;  // レーダーの半径
+            const levels = config.levels || 5;          // 同心円のレベル数
+            const maxValue = config.maxValue || 100;    // 値の最大値
+
+            // SVGを作成し、中央に配置
+            const svg = d3.select(selector)
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width / 2}, ${height / 2})`);  // 中央に移動
+
+            // 各軸の角度（ラジアン）
+            const angleSlice = (Math.PI * 2) / axes.length;  // 360度 / 軸の数
+
+            // ============================================
+            // 背景の同心円とグリッド線を描画
+            // ============================================
+
+            // レベル円（同心円のグリッド）
+            for (let level = 1; level <= levels; level++) {
+                const r = (radius / levels) * level;  // 各レベルの半径
+
+                // 同心円を描画
+                svg.append("circle")
+                    .attr("r", r)
+                    .attr("fill", "none")
+                    .attr("stroke", "#ddd")
+                    .attr("stroke-width", 1);
+
+                // スケールのラベル（各レベルの値）
+                svg.append("text")
+                    .attr("x", 5)
+                    .attr("y", -r)
+                    .attr("font-size", "10px")
+                    .attr("fill", "#999")
+                    .text((maxValue / levels) * level);  // 値を表示
+            }
+
+            // ============================================
+            // 軸線とラベルの描画
+            // ============================================
+
+            // 各軸を描画
+            axes.forEach((axis, i) => {
+                // i: 軸のインデックス（0から始まる）
+                // 12時の位置から時計回りに配置するため、-Math.PI/2（-90度）を引く
+                const angle = angleSlice * i - Math.PI / 2;
+                const x = radius * Math.cos(angle);
+                const y = radius * Math.sin(angle);
+
+                // 中心から外側への軸線
+                svg.append("line")
+                    .attr("x1", 0)
+                    .attr("y1", 0)
+                    .attr("x2", x)
+                    .attr("y2", y)
+                    .attr("stroke", "#ddd")
+                    .attr("stroke-width", 1);
+
+                // 軸ラベル（軸の外側に配置）
+                const labelRadius = radius + 25;
+                const labelX = labelRadius * Math.cos(angle);
+                const labelY = labelRadius * Math.sin(angle);
+
+                svg.append("text")
+                    .attr("x", labelX)
+                    .attr("y", labelY)
+                    .attr("text-anchor", "middle")
+                    .attr("dy", "0.35em")  // 垂直方向の微調整
+                    .attr("font-size", "12px")
+                    .attr("font-weight", "bold")
+                    .text(axis);  // 軸の名前
+            });
+
+            // ============================================
+            // ポリゴンパス生成関数
+            // ============================================
+
+            // 値の配列から多角形の頂点座標を計算
+            function getPolygonPath(values) {
+                return values.map((value, i) => {
+                    // i: 値のインデックス（軸に対応）
+                    const angle = angleSlice * i - Math.PI / 2;
+                    const r = (value / maxValue) * radius;  // 値に応じた半径
+                    // 極座標から直交座標に変換
+                    return [r * Math.cos(angle), r * Math.sin(angle)];
+                });
+            }
+
+            // レーダーエリア描画
+            data.forEach((d, idx) => {
+                const points = getPolygonPath(d.values);
+                const pathData = points.map(p => p.join(",")).join(" ");
+
+                const area = svg.append("polygon")
+                    .attr("class", "radar-area")
+                    .attr("points", pathData)
+                    .attr("fill", d.color)
+                    .attr("stroke", d.color)
+                    .attr("data-name", d.name)
+                    .on("mouseenter", function(event) {
+                        d3.select(this).raise();
+                        tooltip.style("opacity", 1)
+                            .html(`<strong>${d.name}</strong>`)
+                            .style("left", (event.pageX + 15) + "px")
+                            .style("top", (event.pageY - 20) + "px");
+                    })
+                    .on("mouseleave", () => tooltip.style("opacity", 0));
+
+                // データポイント
+                points.forEach((point, i) => {
+                    svg.append("circle")
+                        .attr("cx", point[0])
+                        .attr("cy", point[1])
+                        .attr("r", 5)
+                        .attr("fill", d.color)
+                        .attr("stroke", "white")
+                        .attr("stroke-width", 2)
+                        .style("cursor", "pointer")
+                        .on("mouseenter", function(event) {
+                            d3.select(this).attr("r", 8);
+                            tooltip.style("opacity", 1)
+                                .html(`
+                                    <strong>${d.name}</strong><br>
+                                    ${axes[i]}: ${d.values[i]}
+                                `)
+                                .style("left", (event.pageX + 15) + "px")
+                                .style("top", (event.pageY - 20) + "px");
+                        })
+                        .on("mouseleave", function() {
+                            d3.select(this).attr("r", 5);
+                            tooltip.style("opacity", 0);
+                        });
+                });
+            });
+
+            return svg;
+        }
+
+        // スキルレーダーチャート作成
+        createRadarChart("#skills-radar", skillAxes, skillData, {
+            width: 600,
+            height: 500
+        });
+
+        // 凡例作成
+        const legend = d3.select("#skills-legend");
+        skillData.forEach(d => {
+            const item = legend.append("div")
+                .attr("class", "legend-item")
+                .on("click", function() {
+                    const area = d3.select(`polygon[data-name="${d.name}"]`);
+                    const currentOpacity = area.style("opacity");
+                    area.transition()
+                        .duration(300)
+                        .style("opacity", currentOpacity == 1 ? 0.1 : 1);
+                });
+
+            item.append("div")
+                .attr("class", "legend-color")
+                .style("background", d.color);
+
+            item.append("span").text(d.name);
+        });
+
+        // === 製品評価レーダー ===
+        const productAxes = ["品質", "価格", "デザイン", "機能", "サポート"];
+
+        const product1 = [{
+            name: "製品A",
+            color: "#9b59b6",
+            values: [85, 70, 90, 80, 75]
+        }];
+
+        const product2 = [{
+            name: "製品B",
+            color: "#f39c12",
+            values: [75, 85, 70, 90, 80]
+        }];
+
+        createRadarChart("#product-radar-1", productAxes, product1, {
+            width: 350,
+            height: 350,
+            margin: 60
+        });
+
+        createRadarChart("#product-radar-2", productAxes, product2, {
+            width: 350,
+            height: 350,
+            margin: 60
+        });
+
+        // 製品名ラベル
+        d3.select("#product-radar-1 svg")
+            .append("text")
+            .attr("x", 175)
+            .attr("y", 30)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "16px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#9b59b6")
+            .text("製品A");
+
+        d3.select("#product-radar-2 svg")
+            .append("text")
+            .attr("x", 175)
+            .attr("y", 30)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "16px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#f39c12")
+            .text("製品B");
+    </script>
+</body>
+</html>

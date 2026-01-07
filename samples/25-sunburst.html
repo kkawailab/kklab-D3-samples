@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>25 - サンバースト図</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .slice {
+            cursor: pointer;
+        }
+        .slice:hover {
+            opacity: 0.8;
+        }
+        .center-text {
+            font-size: 16px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+        .breadcrumb-container {
+            text-align: center;
+            margin-bottom: 15px;
+            min-height: 40px;
+        }
+        .breadcrumb {
+            display: inline-flex;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 8px 15px;
+            border-radius: 20px;
+        }
+        .breadcrumb-item {
+            display: flex;
+            align-items: center;
+        }
+        .breadcrumb-item::after {
+            content: ">";
+            margin: 0 10px;
+            color: #999;
+        }
+        .breadcrumb-item:last-child::after {
+            content: "";
+        }
+        .breadcrumb-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+    </style>
+</head>
+<body>
+    <h1>25 - サンバースト図</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.partition()を使ったサンバースト図、ズーム可能な階層表示</p>
+        <p>セグメントをクリックするとズームイン、中央をクリックするとズームアウトします。</p>
+    </div>
+
+    <div class="chart-container">
+        <div class="breadcrumb-container" id="breadcrumb"></div>
+        <div id="sunburst"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // サンバースト図（Sunburst Chart）とは？
+        // ============================================
+        // サンバースト図は、階層構造を持つデータを同心円状のセグメントで表現する可視化手法です。
+        // 中心から外側に向かって階層が深くなり、各セグメントの角度はデータの値に比例します。
+        //
+        // 特徴：
+        // - 階層構造を円形で美しく表現
+        // - セグメントの角度で値の割合を表現
+        // - ズーム機能で詳細を掘り下げられる
+        // - スペースを効率的に使える
+        //
+        // このサンプルでは、ファイルシステムのようなデータ構造を可視化し、
+        // セグメントをクリックしてズームイン/アウトできます。
+        // ============================================
+
+        // ============================================
+        // 階層データの定義
+        // ============================================
+        // ファイルシステムのようなデータ（プロジェクトの構造）
+        // - name: ディレクトリ名またはファイル名
+        // - children: 配下のディレクトリ/ファイル
+        // - value: ファイルの行数（末端ノードのみ）
+        const data = {
+            name: "root",
+            children: [
+                {
+                    name: "src",
+                    children: [
+                        {
+                            name: "components",
+                            children: [
+                                {name: "Header.tsx", value: 150},
+                                {name: "Footer.tsx", value: 100},
+                                {name: "Sidebar.tsx", value: 200},
+                                {name: "Modal.tsx", value: 180}
+                            ]
+                        },
+                        {
+                            name: "pages",
+                            children: [
+                                {name: "Home.tsx", value: 300},
+                                {name: "About.tsx", value: 150},
+                                {name: "Contact.tsx", value: 120},
+                                {name: "Products.tsx", value: 400}
+                            ]
+                        },
+                        {
+                            name: "utils",
+                            children: [
+                                {name: "api.ts", value: 250},
+                                {name: "helpers.ts", value: 180},
+                                {name: "constants.ts", value: 80}
+                            ]
+                        },
+                        {
+                            name: "hooks",
+                            children: [
+                                {name: "useAuth.ts", value: 120},
+                                {name: "useApi.ts", value: 150},
+                                {name: "useForm.ts", value: 200}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "public",
+                    children: [
+                        {name: "index.html", value: 50},
+                        {
+                            name: "assets",
+                            children: [
+                                {name: "logo.svg", value: 20},
+                                {name: "hero.png", value: 500},
+                                {name: "icons.svg", value: 100}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "config",
+                    children: [
+                        {name: "webpack.js", value: 200},
+                        {name: "babel.js", value: 80},
+                        {name: "eslint.js", value: 100}
+                    ]
+                },
+                {
+                    name: "tests",
+                    children: [
+                        {name: "unit.test.ts", value: 300},
+                        {name: "integration.test.ts", value: 400},
+                        {name: "e2e.test.ts", value: 250}
+                    ]
+                }
+            ]
+        };
+
+        // ============================================
+        // 設定とカラースケールの定義
+        // ============================================
+        const width = 800;
+        const height = 800;
+        const radius = width / 2;       // 半径
+
+        // トップレベルディレクトリごとの色を定義
+        const color = d3.scaleOrdinal()
+            .domain(["src", "public", "config", "tests"])
+            .range(["#3498db", "#2ecc71", "#f39c12", "#e74c3c"]);
+
+        // ============================================
+        // SVG要素の作成
+        // ============================================
+        const svg = d3.select("#sunburst")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", `translate(${width / 2},${height / 2})`);   // 中心に移動
+
+        // ============================================
+        // パーティションレイアウトの設定
+        // ============================================
+        // d3.partition()で階層データを放射状に配置
+        const partition = d3.partition()
+            .size([2 * Math.PI, radius]);   // [角度範囲（ラジアン）, 半径]
+
+        // ============================================
+        // 階層データの作成
+        // ============================================
+        const root = d3.hierarchy(data)
+            .sum(d => d.value)                      // 各ノードの値を合計
+            .sort((a, b) => b.value - a.value);     // 値の大きい順にソート
+
+        // パーティションレイアウトを計算（各ノードにx0, x1, y0, y1が設定される）
+        partition(root);
+
+        // ============================================
+        // アーク生成器の設定
+        // ============================================
+        // d3.arc()で扇形のパスを生成
+        const arc = d3.arc()
+            .startAngle(d => d.x0)      // 開始角度（ラジアン）
+            .endAngle(d => d.x1)        // 終了角度（ラジアン）
+            .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))  // セグメント間の隙間
+            .padRadius(radius / 2)      // パディングの基準半径
+            .innerRadius(d => d.y0)     // 内側の半径
+            .outerRadius(d => d.y1 - 1);    // 外側の半径
+
+        // ============================================
+        // 色の計算
+        // ============================================
+        // ノードの色を計算（親カテゴリに基づく）
+        function getColor(d) {
+            if (d.depth === 0) return "#fff";       // ルートは白
+            // トップレベルディレクトリまで遡る
+            let current = d;
+            while (current.depth > 1) {
+                current = current.parent;
+            }
+            // ベースカラーを取得し、階層に応じて明るさを調整
+            const baseColor = color(current.data.name);
+            return d3.color(baseColor).brighter((d.depth - 1) * 0.3);
+        }
+
+        // ============================================
+        // セグメント（扇形）の描画
+        // ============================================
+        const path = svg.selectAll("path")
+            .data(root.descendants().filter(d => d.depth))  // ルート以外（depth > 0）
+            .enter()
+            .append("path")
+            .attr("class", "slice")
+            .attr("fill", d => getColor(d))                 // 色を設定
+            .attr("d", arc)                                 // パスを生成
+            .on("click", clicked)                           // クリックイベント
+            .on("mouseenter", showBreadcrumb)               // ホバー時
+            .on("mouseleave", hideBreadcrumb);              // ホバー解除時
+
+        // ============================================
+        // ラベル（テキスト）の描画
+        // ============================================
+        const label = svg.selectAll("text")
+            .data(root.descendants().filter(d => d.depth && (d.y1 - d.y0) > 20))   // 十分な幅がある場合のみ
+            .enter()
+            .append("text")
+            .attr("transform", d => {
+                // テキストを円弧に沿って配置
+                const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;   // 中央の角度（度）
+                const y = (d.y0 + d.y1) / 2;                    // 中央の半径
+                // 回転と移動を組み合わせる
+                // 180度以上の場合は上下反転させて読みやすくする
+                return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+            })
+            .attr("dy", "0.35em")
+            .attr("text-anchor", "middle")
+            .attr("font-size", d => d.depth === 1 ? "11px" : "9px")
+            .attr("fill", "#333")
+            .attr("pointer-events", "none")     // マウスイベントを無効化
+            .text(d => {
+                // 角度が小さい場合は省略
+                const angle = d.x1 - d.x0;
+                const length = d.data.name.length;
+                if (angle < 0.1 && length > 5) return d.data.name.slice(0, 5) + "...";
+                return d.data.name;
+            });
+
+        // ============================================
+        // 中央のラベル（現在のフォーカス情報）
+        // ============================================
+        const centerLabel = svg.append("text")
+            .attr("class", "center-text")
+            .attr("dy", "-0.5em")
+            .text("root");
+
+        const centerValue = svg.append("text")
+            .attr("text-anchor", "middle")
+            .attr("dy", "1em")
+            .attr("font-size", "14px")
+            .attr("fill", "#666")
+            .text(`${root.value} lines`);
+
+        // 中央クリック用の透明な円（クリックエリア）
+        svg.append("circle")
+            .attr("r", radius / 4)                          // 半径
+            .attr("fill", "transparent")                    // 透明
+            .attr("pointer-events", "all")                  // クリック可能
+            .style("cursor", "pointer")
+            .on("click", () => clicked(null, root));        // ルートにズームアウト
+
+        let currentRoot = root;     // 現在のルートノード
+
+        // ============================================
+        // クリック時のズーム処理
+        // ============================================
+        function clicked(event, p) {
+            currentRoot = p;    // ルートを更新
+
+            // アニメーション付きでズーム
+            const t = svg.transition().duration(750);
+
+            // すべてのセグメントをアニメーション
+            path.transition(t)
+                .tween("data", d => {
+                    // 現在の状態から目標の状態へ補間
+                    const i = d3.interpolate(d.current, target(d));
+                    return t => d.current = i(t);   // t: 0から1まで変化
+                })
+                .attrTween("d", d => () => arc(d.current));     // パスを更新
+
+            // 中央のラベルを更新
+            centerLabel.text(p.data.name);
+            centerValue.text(`${p.value} lines`);
+        }
+
+        // ============================================
+        // ズーム時の目標座標を計算
+        // ============================================
+        function target(d) {
+            // 新しいルートに対する相対的な位置を計算
+            // 角度を0-2πの範囲に正規化
+            const x0 = Math.max(0, Math.min(1, (d.x0 - currentRoot.x0) / (currentRoot.x1 - currentRoot.x0))) * 2 * Math.PI;
+            const x1 = Math.max(0, Math.min(1, (d.x1 - currentRoot.x0) / (currentRoot.x1 - currentRoot.x0))) * 2 * Math.PI;
+            // 半径を調整
+            const y0 = Math.max(0, d.y0 - currentRoot.y0);
+            const y1 = Math.max(0, d.y1 - currentRoot.y0);
+            return {x0, x1, y0, y1};
+        }
+
+        // 初期状態を保存（アニメーション用）
+        path.each(d => d.current = d);
+
+        // ============================================
+        // パンくずリスト（階層パスの表示）
+        // ============================================
+        function showBreadcrumb(event, d) {
+            // ルートから現在のノードまでのパスを取得
+            const ancestors = d.ancestors().reverse();
+            const breadcrumb = d3.select("#breadcrumb");
+
+            breadcrumb.html("");    // クリア
+
+            const container = breadcrumb.append("div")
+                .attr("class", "breadcrumb");
+
+            // 各階層を表示
+            ancestors.forEach((node, i) => {
+                if (i === 0) return;    // rootはスキップ
+
+                const item = container.append("span")
+                    .attr("class", "breadcrumb-item");
+
+                // 色のインジケーター
+                item.append("span")
+                    .attr("class", "breadcrumb-color")
+                    .style("background", getColor(node));
+
+                // ノード名
+                item.append("span")
+                    .text(node.data.name);
+            });
+
+            // 行数を表示
+            container.append("span")
+                .style("margin-left", "15px")
+                .style("color", "#666")
+                .text(`${d.value} lines`);
+        }
+
+        // パンくずリストを非表示
+        function hideBreadcrumb() {
+            d3.select("#breadcrumb").html("");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>21 - 力指向グラフ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+            background: #fafafa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .node {
+            cursor: pointer;
+        }
+        .node:hover {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        .link {
+            stroke-opacity: 0.6;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <h1>21 - 力指向グラフ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.forceSimulation()を使ったネットワーク可視化、ノードのドラッグ、力のカスタマイズ</p>
+        <p>ノードをドラッグして移動できます。</p>
+    </div>
+
+    <div class="chart-container">
+        <div class="controls">
+            <button onclick="restartSimulation()">シミュレーション再開</button>
+            <button onclick="toggleLabels()">ラベル表示切替</button>
+            <button onclick="increaseRepulsion()">反発力 +</button>
+            <button onclick="decreaseRepulsion()">反発力 -</button>
+        </div>
+        <div id="force-graph"></div>
+        <div class="legend" id="legend"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 力指向グラフ（Force-Directed Graph）とは？
+        // ============================================
+        // 力指向グラフは、ノード（点）とリンク（線）で構成されるネットワークを
+        // 物理シミュレーションを使って配置する可視化手法です。
+        //
+        // 主な力の種類：
+        // - forceLink: ノード同士を繋ぐリンクの力（バネのように引っ張る）
+        // - forceManyBody: ノード間の反発力（磁石のN極同士のような反発）
+        // - forceCenter: 全体を中心に引き寄せる力
+        // - forceCollide: ノード同士の衝突を防ぐ力
+        //
+        // このサンプルでは、組織のネットワーク構造を可視化し、
+        // ドラッグでノードを移動したり、力の強さを調整できます。
+        // ============================================
+
+        // ============================================
+        // ネットワークデータの定義
+        // ============================================
+        // nodes: ネットワーク内の各ノード（人物や組織）を表す
+        // - id: ノードの一意な識別子
+        // - group: ノードが属するグループ（色分けに使用）
+        // - size: ノードの大きさ（半径）
+        const nodes = [
+            {id: "CEO", group: "経営層", size: 30},
+            {id: "CTO", group: "経営層", size: 25},
+            {id: "CFO", group: "経営層", size: 25},
+            {id: "開発部長", group: "管理職", size: 20},
+            {id: "営業部長", group: "管理職", size: 20},
+            {id: "人事部長", group: "管理職", size: 20},
+            {id: "開発者A", group: "開発", size: 15},
+            {id: "開発者B", group: "開発", size: 15},
+            {id: "開発者C", group: "開発", size: 15},
+            {id: "開発者D", group: "開発", size: 15},
+            {id: "デザイナーA", group: "開発", size: 15},
+            {id: "営業A", group: "営業", size: 15},
+            {id: "営業B", group: "営業", size: 15},
+            {id: "営業C", group: "営業", size: 15},
+            {id: "人事A", group: "人事", size: 15},
+            {id: "人事B", group: "人事", size: 15}
+        ];
+
+        // links: ノード間の接続関係を表す
+        // - source: リンクの始点（ノードのid）
+        // - target: リンクの終点（ノードのid）
+        // - strength: リンクの強さ（距離に影響する）
+        const links = [
+            {source: "CEO", target: "CTO", strength: 3},
+            {source: "CEO", target: "CFO", strength: 3},
+            {source: "CTO", target: "開発部長", strength: 2},
+            {source: "CFO", target: "営業部長", strength: 2},
+            {source: "CFO", target: "人事部長", strength: 2},
+            {source: "開発部長", target: "開発者A", strength: 1},
+            {source: "開発部長", target: "開発者B", strength: 1},
+            {source: "開発部長", target: "開発者C", strength: 1},
+            {source: "開発部長", target: "開発者D", strength: 1},
+            {source: "開発部長", target: "デザイナーA", strength: 1},
+            {source: "営業部長", target: "営業A", strength: 1},
+            {source: "営業部長", target: "営業B", strength: 1},
+            {source: "営業部長", target: "営業C", strength: 1},
+            {source: "人事部長", target: "人事A", strength: 1},
+            {source: "人事部長", target: "人事B", strength: 1},
+            {source: "開発者A", target: "開発者B", strength: 1},
+            {source: "開発者B", target: "デザイナーA", strength: 1},
+            {source: "営業A", target: "営業B", strength: 1},
+            {source: "CTO", target: "開発者A", strength: 1}
+        ];
+
+        // ============================================
+        // 設定とスケールの定義
+        // ============================================
+        // 各グループに対応する色を定義
+        const groupColors = {
+            "経営層": "#e74c3c",
+            "管理職": "#f39c12",
+            "開発": "#3498db",
+            "営業": "#2ecc71",
+            "人事": "#9b59b6"
+        };
+
+        const width = 800;
+        const height = 600;
+        let showLabels = true;                 // ラベル表示フラグ
+        let chargeStrength = -300;             // 反発力の強さ（負の値で反発）
+
+        // ============================================
+        // SVG要素の作成
+        // ============================================
+        const svg = d3.select("#force-graph")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        // ============================================
+        // 矢印マーカーの定義
+        // ============================================
+        // リンクの終端に表示する矢印を定義します
+        // <defs>タグ内に定義することで、複数の場所で再利用できます
+        svg.append("defs").selectAll("marker")
+            .data(["arrow"])
+            .enter()
+            .append("marker")
+            .attr("id", d => d)                         // マーカーのID
+            .attr("viewBox", "0 -5 10 10")              // 表示範囲
+            .attr("refX", 20)                           // X方向の基準点
+            .attr("refY", 0)                            // Y方向の基準点
+            .attr("markerWidth", 6)                     // マーカーの幅
+            .attr("markerHeight", 6)                    // マーカーの高さ
+            .attr("orient", "auto")                     // 自動的に方向を調整
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")               // 三角形の矢印の形
+            .attr("fill", "#999");
+
+        // ============================================
+        // 力指向シミュレーションの設定
+        // ============================================
+        // d3.forceSimulation()で物理シミュレーションを作成
+        // 各種の力を.force()メソッドで追加していきます
+        const simulation = d3.forceSimulation(nodes)
+            // forceLink: リンクの力（引っ張り合う力）
+            .force("link", d3.forceLink(links)
+                .id(d => d.id)                          // ノードのIDを指定
+                .distance(d => 100 - d.strength * 20)   // 距離を設定（strengthが高いほど近く）
+            )
+            // forceManyBody: ノード間の反発力
+            .force("charge", d3.forceManyBody().strength(chargeStrength))
+            // forceCenter: 全体を中心に引き寄せる力
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            // forceCollide: ノード同士の衝突を防ぐ力
+            .force("collision", d3.forceCollide().radius(d => d.size + 5));
+
+        // ============================================
+        // リンク（線）の描画
+        // ============================================
+        // ノード間を繋ぐ線を描画します
+        const link = svg.append("g")
+            .selectAll("line")
+            .data(links)
+            .enter()
+            .append("line")
+            .attr("class", "link")
+            .attr("stroke", "#999")
+            .attr("stroke-width", d => d.strength);     // 線の太さをstrengthに応じて変更
+
+        // ============================================
+        // ノード（円）の描画
+        // ============================================
+        // ネットワークの各ノードを円として描画します
+        const node = svg.append("g")
+            .selectAll("circle")
+            .data(nodes)
+            .enter()
+            .append("circle")
+            .attr("class", "node")
+            .attr("r", d => d.size)                     // 半径をデータから取得
+            .attr("fill", d => groupColors[d.group])    // グループごとに色分け
+            .call(drag(simulation));                    // ドラッグ機能を追加
+
+        // ============================================
+        // ラベル（テキスト）の描画
+        // ============================================
+        // 各ノードの名前をテキストとして表示します
+        const labels = svg.append("g")
+            .selectAll("text")
+            .data(nodes)
+            .enter()
+            .append("text")
+            .attr("text-anchor", "middle")              // 中央揃え
+            .attr("dy", d => d.size + 15)               // 円の下に配置
+            .attr("font-size", "11px")
+            .attr("fill", "#333")
+            .text(d => d.id);                           // ノードのIDをテキストに
+
+        // ============================================
+        // シミュレーションのティック更新
+        // ============================================
+        // シミュレーションが進むたびに呼び出される関数
+        // ノードとリンクの位置を更新します
+        simulation.on("tick", () => {
+            // リンクの位置を更新
+            // d.source と d.target は、シミュレーションによって
+            // x, y 座標が自動的に付与されます
+            link
+                .attr("x1", d => d.source.x)            // 始点のX座標
+                .attr("y1", d => d.source.y)            // 始点のY座標
+                .attr("x2", d => d.target.x)            // 終点のX座標
+                .attr("y2", d => d.target.y);           // 終点のY座標
+
+            // ノードの位置を更新（画面外に出ないように制限）
+            node
+                .attr("cx", d => d.x = Math.max(d.size, Math.min(width - d.size, d.x)))
+                .attr("cy", d => d.y = Math.max(d.size, Math.min(height - d.size, d.y)));
+
+            // ラベルの位置を更新
+            labels
+                .attr("x", d => d.x)
+                .attr("y", d => d.y);
+        });
+
+        // ============================================
+        // ドラッグ動作の定義
+        // ============================================
+        // ノードをドラッグして移動できるようにする関数
+        function drag(simulation) {
+            // ドラッグ開始時の処理
+            function dragstarted(event) {
+                // シミュレーションが停止している場合は再開
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                // ノードの位置を固定（fx, fyは固定座標）
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            // ドラッグ中の処理
+            function dragged(event) {
+                // マウスの位置にノードを移動
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            // ドラッグ終了時の処理
+            function dragended(event) {
+                // シミュレーションを徐々に停止
+                if (!event.active) simulation.alphaTarget(0);
+                // 位置の固定を解除（自由に動けるようにする）
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+
+            // d3.drag()でドラッグビヘイビアを作成
+            return d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended);
+        }
+
+        // ============================================
+        // コントロール関数（ボタンから呼び出される）
+        // ============================================
+        // シミュレーションを再開
+        function restartSimulation() {
+            // alpha(1)で完全に再開
+            simulation.alpha(1).restart();
+        }
+
+        // ラベルの表示/非表示を切り替え
+        function toggleLabels() {
+            showLabels = !showLabels;
+            labels.style("display", showLabels ? "block" : "none");
+        }
+
+        // 反発力を強くする（ノードが離れる）
+        function increaseRepulsion() {
+            chargeStrength -= 50;               // より負の値にする
+            simulation.force("charge", d3.forceManyBody().strength(chargeStrength));
+            simulation.alpha(0.5).restart();    // 少し再開
+        }
+
+        // 反発力を弱くする（ノードが近づく）
+        function decreaseRepulsion() {
+            chargeStrength += 50;               // 負の値を小さくする
+            simulation.force("charge", d3.forceManyBody().strength(chargeStrength));
+            simulation.alpha(0.5).restart();
+        }
+
+        // ============================================
+        // 凡例の作成
+        // ============================================
+        const legend = d3.select("#legend");
+        Object.entries(groupColors).forEach(([group, color]) => {
+            const item = legend.append("div").attr("class", "legend-item");
+            item.append("div")
+                .attr("class", "legend-color")
+                .style("background", color);
+            item.append("span").text(group);
+        });
+
+        // ============================================
+        // ホバー効果（インタラクティブ機能）
+        // ============================================
+        // ノードにマウスを乗せたときの処理
+        node.on("mouseover", function(event, d) {
+            // event: マウスイベント、d: ホバーされたノードのデータ
+
+            // 接続されているノードをハイライト
+            const connectedNodes = new Set();
+            // すべてのリンクをチェックして、接続されているノードを探す
+            links.forEach(l => {
+                if (l.source.id === d.id) connectedNodes.add(l.target.id);
+                if (l.target.id === d.id) connectedNodes.add(l.source.id);
+            });
+            connectedNodes.add(d.id);   // 自分自身も含める
+
+            // 接続されているノードだけ不透明度を1に、それ以外は0.2に
+            node.attr("opacity", n => connectedNodes.has(n.id) ? 1 : 0.2);
+            // 接続されているリンクだけハイライト
+            link.attr("opacity", l =>
+                l.source.id === d.id || l.target.id === d.id ? 1 : 0.1
+            );
+            labels.attr("opacity", n => connectedNodes.has(n.id) ? 1 : 0.2);
+        })
+        .on("mouseout", function() {
+            // マウスが離れたらすべてを元に戻す
+            node.attr("opacity", 1);
+            link.attr("opacity", 1);
+            labels.attr("opacity", 1);
+        });
+    </script>
+</body>
+</html>

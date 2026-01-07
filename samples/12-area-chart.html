@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>12 - エリアチャート</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .grid line {
+            stroke: #e0e0e0;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>12 - エリアチャート</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.area()を使ったエリアチャートの作成、グラデーション、積み上げエリア</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>基本的なエリアチャート</h2>
+        <div id="basic-area"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>積み上げエリアチャート</h2>
+        <div id="stacked-area"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // エリアチャート（Area Chart）とは：
+        // 折れ線グラフの下部を塗りつぶしたグラフです。
+        // 時系列データの推移と累積量を同時に表現できます。
+        // 積み上げエリアチャートは複数系列の構成比の変化を可視化します。
+        // ============================================
+
+        // ============================================
+        // 基本的なエリアチャート
+        // ============================================
+        // 株価の月次データ
+        const stockData = [
+            {date: new Date(2024, 0, 1), value: 100},
+            {date: new Date(2024, 1, 1), value: 120},
+            {date: new Date(2024, 2, 1), value: 115},
+            {date: new Date(2024, 3, 1), value: 140},
+            {date: new Date(2024, 4, 1), value: 135},
+            {date: new Date(2024, 5, 1), value: 160},
+            {date: new Date(2024, 6, 1), value: 175},
+            {date: new Date(2024, 7, 1), value: 165},
+            {date: new Date(2024, 8, 1), value: 180},
+            {date: new Date(2024, 9, 1), value: 195},
+            {date: new Date(2024, 10, 1), value: 210},
+            {date: new Date(2024, 11, 1), value: 225}
+        ];
+
+        // SVGキャンバスのサイズ設定
+        const margin1 = {top: 30, right: 30, bottom: 50, left: 60};
+        const width1 = 700 - margin1.left - margin1.right;
+        const height1 = 350 - margin1.top - margin1.bottom;
+
+        const svg1 = d3.select("#basic-area")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // ============================================
+        // グラデーション定義（SVGの塗りつぶし効果）
+        // ============================================
+        // defs: SVGの再利用可能な要素を定義するセクション
+        const gradient = svg1.append("defs")
+            .append("linearGradient")        // 線形グラデーション
+            .attr("id", "area-gradient")     // ID（後で参照するため）
+            .attr("x1", "0%")                // グラデーション開始点X
+            .attr("y1", "0%")                // グラデーション開始点Y（上）
+            .attr("x2", "0%")                // グラデーション終了点X
+            .attr("y2", "100%");             // グラデーション終了点Y（下）
+
+        // グラデーションの色停止点（上側：濃い）
+        gradient.append("stop")
+            .attr("offset", "0%")            // グラデーションの0%位置
+            .attr("stop-color", "#4a90d9")   // 色
+            .attr("stop-opacity", 0.8);      // 不透明度80%
+
+        // グラデーションの色停止点（下側：薄い）
+        gradient.append("stop")
+            .attr("offset", "100%")          // グラデーションの100%位置
+            .attr("stop-color", "#4a90d9")
+            .attr("stop-opacity", 0.1);      // 不透明度10%
+
+        // ============================================
+        // スケール
+        // ============================================
+        // X軸スケール（時間軸）
+        // scaleTime(): 日付・時刻データ専用のスケール
+        const x1 = d3.scaleTime()
+            .domain(d3.extent(stockData, d => d.date))  // extent(): [最小値, 最大値]を返す
+            .range([0, width1]);
+
+        // Y軸スケール（値）
+        const y1 = d3.scaleLinear()
+            .domain([0, d3.max(stockData, d => d.value) * 1.1])  // 最大値の1.1倍（余白確保）
+            .range([height1, 0]);
+
+        // ============================================
+        // グリッド線
+        // ============================================
+        svg1.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y1).tickSize(-width1).tickFormat(""));
+
+        // ============================================
+        // エリア生成器（パスデータを生成する関数）
+        // ============================================
+        // d3.area(): エリアチャートのパスを生成するジェネレータ
+        const area1 = d3.area()
+            .x(d => x1(d.date))    // d: データオブジェクト → X座標（日付）
+            .y0(height1)           // エリアの下端Y座標（グラフの下部）
+            .y1(d => y1(d.value))  // エリアの上端Y座標（データの値）
+            .curve(d3.curveMonotoneX);  // 曲線補間（滑らかな曲線）
+
+        // ============================================
+        // ライン生成器（エリアの上端に描く線）
+        // ============================================
+        // d3.line(): 折れ線グラフのパスを生成するジェネレータ
+        const line1 = d3.line()
+            .x(d => x1(d.date))
+            .y(d => y1(d.value))
+            .curve(d3.curveMonotoneX);  // エリアと同じ曲線補間を使用
+
+        // ============================================
+        // エリア描画
+        // ============================================
+        svg1.append("path")
+            .datum(stockData)                    // datum(): 単一のデータ配列全体をバインド
+            .attr("fill", "url(#area-gradient)") // グラデーションで塗りつぶし
+            .attr("d", area1);                   // d属性にパスデータを設定
+
+        // ============================================
+        // ライン描画（エリアの上端）
+        // ============================================
+        svg1.append("path")
+            .datum(stockData)
+            .attr("fill", "none")        // 塗りつぶしなし
+            .attr("stroke", "#4a90d9")   // 線の色
+            .attr("stroke-width", 2.5)   // 線の太さ
+            .attr("d", line1);           // d属性にパスデータを設定
+
+        // ============================================
+        // データポイント（各月の点）
+        // ============================================
+        svg1.selectAll(".dot")
+            .data(stockData)
+            .enter()
+            .append("circle")
+            .attr("class", "dot")
+            .attr("cx", d => x1(d.date))   // 円の中心X座標
+            .attr("cy", d => y1(d.value))  // 円の中心Y座標
+            .attr("r", 5)                  // 円の半径
+            .attr("fill", "#fff")          // 白で塗りつぶし
+            .attr("stroke", "#4a90d9")     // 青い枠線
+            .attr("stroke-width", 2);
+
+        // ============================================
+        // 軸の作成
+        // ============================================
+        svg1.append("g")
+            .attr("transform", `translate(0,${height1})`)
+            .call(d3.axisBottom(x1)
+                .tickFormat(d3.timeFormat("%Y/%m")));  // 時刻フォーマット（年/月）
+
+        svg1.append("g")
+            .call(d3.axisLeft(y1)
+                .tickFormat(d => `¥${d}`));  // 円記号を付けて表示
+
+        // タイトル
+        svg1.append("text")
+            .attr("x", width1 / 2)
+            .attr("y", -10)
+            .attr("text-anchor", "middle")
+            .attr("font-weight", "bold")
+            .text("株価推移 2024年");
+
+        // ============================================
+        // 積み上げエリアチャート
+        // ============================================
+        // Webサイトの流入元別トラフィックデータ
+        const trafficData = [
+            {month: "1月", direct: 30, search: 45, social: 20, referral: 15},
+            {month: "2月", direct: 35, search: 50, social: 25, referral: 18},
+            {month: "3月", direct: 40, search: 55, social: 30, referral: 20},
+            {month: "4月", direct: 45, search: 60, social: 35, referral: 22},
+            {month: "5月", direct: 50, search: 65, social: 40, referral: 25},
+            {month: "6月", direct: 55, search: 70, social: 45, referral: 28},
+            {month: "7月", direct: 60, search: 75, social: 50, referral: 30},
+            {month: "8月", direct: 58, search: 72, social: 48, referral: 28},
+            {month: "9月", direct: 55, search: 68, social: 45, referral: 26},
+            {month: "10月", direct: 60, search: 75, social: 50, referral: 30},
+            {month: "11月", direct: 65, search: 80, social: 55, referral: 32},
+            {month: "12月", direct: 70, search: 85, social: 60, referral: 35}
+        ];
+
+        // データのキー（プロパティ名）と表示名の定義
+        const keys = ["direct", "search", "social", "referral"];
+        const keyLabels = {
+            direct: "直接流入",
+            search: "検索",
+            social: "SNS",
+            referral: "参照"
+        };
+
+        // 各流入元の色
+        const colors = {
+            direct: "#4a90d9",
+            search: "#2ecc71",
+            social: "#e74c3c",
+            referral: "#f39c12"
+        };
+
+        // SVGキャンバスのサイズ設定
+        const margin2 = {top: 30, right: 120, bottom: 50, left: 60};
+        const width2 = 750 - margin2.left - margin2.right;
+        const height2 = 400 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#stacked-area")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        // ============================================
+        // スタック（積み上げ）データの生成
+        // ============================================
+        // d3.stack(): 積み上げ用にデータを変換するジェネレータ
+        const stack = d3.stack()
+            .keys(keys)                      // 積み上げる項目のキー
+            .order(d3.stackOrderNone)        // 順序（元の順序を維持）
+            .offset(d3.stackOffsetNone);     // オフセット（積み上げ方式）
+
+        // スタックデータを生成（各要素に [下端, 上端] の配列が追加される）
+        const series = stack(trafficData);
+
+        // ============================================
+        // スケール
+        // ============================================
+        // X軸スケール（離散的な点）
+        // scalePoint(): カテゴリデータを等間隔の点に配置するスケール
+        const x2 = d3.scalePoint()
+            .domain(trafficData.map(d => d.month))  // 月のリスト
+            .range([0, width2]);
+
+        // Y軸スケール
+        const y2 = d3.scaleLinear()
+            .domain([0, d3.max(series, s => d3.max(s, d => d[1])) * 1.05])  // 積み上げた最大値
+            .range([height2, 0]);
+
+        // ============================================
+        // エリア生成器（積み上げ用）
+        // ============================================
+        const area2 = d3.area()
+            .x((d, i) => x2(trafficData[i].month))  // d: [下端, 上端], i: インデックス
+            .y0(d => y2(d[0]))                      // エリアの下端（積み上げの下側）
+            .y1(d => y2(d[1]))                      // エリアの上端（積み上げの上側）
+            .curve(d3.curveMonotoneX);
+
+        // ============================================
+        // 積み上げエリア描画
+        // ============================================
+        svg2.selectAll(".layer")
+            .data(series)              // series: 各流入元のスタックデータ
+            .enter()
+            .append("path")
+            .attr("class", "layer")
+            .attr("d", area2)          // パスデータを設定
+            .attr("fill", d => colors[d.key])  // d.key: 流入元の名前（"direct"など）
+            .attr("opacity", 0.8)
+            .on("mouseenter", function(event, d) {
+                // マウスオーバー時、他のレイヤーを薄くして強調
+                svg2.selectAll(".layer")
+                    .transition()
+                    .duration(200)
+                    .attr("opacity", layer => layer.key === d.key ? 1 : 0.3);
+            })
+            .on("mouseleave", function() {
+                // マウスが離れたら全て元の透明度に戻す
+                svg2.selectAll(".layer")
+                    .transition()
+                    .duration(200)
+                    .attr("opacity", 0.8);
+            });
+
+        // ============================================
+        // 軸の作成
+        // ============================================
+        svg2.append("g")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(x2));
+
+        svg2.append("g")
+            .call(d3.axisLeft(y2)
+                .tickFormat(d => d + "K"));  // K（千）を付けて表示
+
+        // タイトル
+        svg2.append("text")
+            .attr("x", width2 / 2)
+            .attr("y", -10)
+            .attr("text-anchor", "middle")
+            .attr("font-weight", "bold")
+            .text("Webサイトトラフィックの流入元別推移");
+
+        // ============================================
+        // 凡例
+        // ============================================
+        const legend = svg2.append("g")
+            .attr("transform", `translate(${width2 + 20}, 30)`);
+
+        keys.forEach((key, i) => {
+            const g = legend.append("g")
+                .attr("transform", `translate(0, ${i * 25})`);
+
+            // 凡例の色付き四角
+            g.append("rect")
+                .attr("width", 18)
+                .attr("height", 18)
+                .attr("fill", colors[key])
+                .attr("rx", 3);  // 角丸
+
+            // 凡例のラベル
+            g.append("text")
+                .attr("x", 25)
+                .attr("y", 14)
+                .attr("font-size", "13px")
+                .text(keyLabels[key]);
+        });
+
+        // Y軸ラベル
+        svg2.append("text")
+            .attr("transform", "rotate(-90)")  // 縦書き
+            .attr("x", -height2 / 2)
+            .attr("y", -45)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "13px")
+            .text("訪問数（千）");
+    </script>
+</body>
+</html>

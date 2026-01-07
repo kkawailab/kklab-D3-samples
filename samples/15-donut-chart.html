@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>15 - ドーナツチャート</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .chart-wrapper {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        .slice {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .slice:hover {
+            transform: scale(1.03);
+        }
+    </style>
+</head>
+<body>
+    <h1>15 - ドーナツチャート</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> 内側の半径を持つ円グラフ、中央テキスト、アニメーション、複数ドーナツの比較</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>プロジェクト進捗状況</h2>
+        <div id="progress-donut"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>部門別予算配分（前年比較）</h2>
+        <div class="chart-wrapper">
+            <div id="budget-2023"></div>
+            <div id="budget-2024"></div>
+        </div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // ドーナツチャート（Donut Chart）とは：
+        // 円グラフの中央に穴を開けた形状のグラフです。
+        // 円グラフと同様にデータの構成比を表現しますが、
+        // 中央のスペースに合計値や補足情報を表示できます。
+        // ============================================
+
+        // ============================================
+        // プロジェクト進捗ドーナツ
+        // ============================================
+        const progressData = [
+            {status: "完了", value: 65, color: "#2ecc71"},
+            {status: "進行中", value: 20, color: "#3498db"},
+            {status: "保留", value: 10, color: "#f39c12"},
+            {status: "未着手", value: 5, color: "#e0e0e0"}
+        ];
+
+        // SVGキャンバスのサイズ設定
+        const width1 = 500;
+        const height1 = 350;
+        const radius1 = Math.min(width1, height1) / 2 - 30;  // 外側の半径
+        const innerRadius1 = radius1 * 0.6;                  // 内側の半径（穴のサイズ）
+
+        const svg1 = d3.select("#progress-donut")
+            .append("svg")
+            .attr("width", width1)
+            .attr("height", height1)
+            .append("g")
+            .attr("transform", `translate(${width1/2}, ${height1/2})`);  // 中心に移動
+
+        // ============================================
+        // パイ（円グラフ）生成器
+        // ============================================
+        // d3.pie(): データを角度（ラジアン）に変換するジェネレータ
+        const pie1 = d3.pie()
+            .value(d => d.value)    // 値を取得する関数
+            .sort(null)             // ソートしない（元の順序を維持）
+            .padAngle(0.02);        // スライス間の隙間（ラジアン）
+
+        // ============================================
+        // アーク（円弧）生成器
+        // ============================================
+        // d3.arc(): SVGパスデータを生成する関数
+        const arc1 = d3.arc()
+            .innerRadius(innerRadius1)  // 内側の半径（この値が0だと円グラフになる）
+            .outerRadius(radius1)       // 外側の半径
+            .cornerRadius(5);           // 角の丸み
+
+        // ホバー時に少し拡大するアーク
+        const arcHover = d3.arc()
+            .innerRadius(innerRadius1)
+            .outerRadius(radius1 + 10)  // 10px大きくする
+            .cornerRadius(5);
+
+        // ============================================
+        // ドーナツスライスの描画
+        // ============================================
+        const slices = svg1.selectAll(".slice")
+            .data(pie1(progressData))  // pie1がデータを角度情報に変換
+            .enter()
+            .append("g")
+            .attr("class", "slice");
+
+        slices.append("path")
+            .attr("d", arc1)                    // arc1でパスデータを生成
+            .attr("fill", d => d.data.color)    // d.data: 元のデータオブジェクト
+            .attr("stroke", "white")
+            .attr("stroke-width", 2)
+            .style("cursor", "pointer")
+            .on("mouseenter", function(event, d) {
+                // スライスを拡大
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr("d", arcHover);
+
+                // 中央のテキストを更新
+                centerText.text(d.data.value + "%");
+                centerLabel.text(d.data.status);
+            })
+            .on("mouseleave", function() {
+                // 元のサイズに戻す
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr("d", arc1);
+
+                // 中央のテキストを元に戻す
+                centerText.text("65%");
+                centerLabel.text("完了");
+            })
+            .transition()
+            .duration(1000)
+            .attrTween("d", function(d) {
+                // アニメーション: 角度0から徐々に広がる
+                // interpolate: 補間関数（0→1の値tを受け取り、中間状態を返す）
+                const interpolate = d3.interpolate({startAngle: 0, endAngle: 0}, d);
+                return t => arc1(interpolate(t));  // t: 0→1に変化する値
+            });
+
+        // ============================================
+        // パーセントラベル（スライス上）
+        // ============================================
+        slices.append("text")
+            .attr("transform", d => `translate(${arc1.centroid(d)})`)  // centroid: 重心位置
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .attr("fill", d => d.data.status === "未着手" ? "#666" : "white")
+            .text(d => d.data.value + "%")
+            .style("opacity", 0)
+            .transition()
+            .delay(800)         // 800ms遅延してから開始
+            .duration(300)
+            .style("opacity", 1);
+
+        // ============================================
+        // 中央テキスト（ドーナツの穴の部分）
+        // ============================================
+        const centerText = svg1.append("text")
+            .attr("text-anchor", "middle")
+            .attr("y", -10)
+            .attr("font-size", "36px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#2ecc71")
+            .text("65%");
+
+        const centerLabel = svg1.append("text")
+            .attr("text-anchor", "middle")
+            .attr("y", 20)
+            .attr("font-size", "16px")
+            .attr("fill", "#666")
+            .text("完了");
+
+        // 凡例
+        const legend1 = svg1.append("g")
+            .attr("transform", `translate(${radius1 + 30}, ${-radius1 + 30})`);
+
+        progressData.forEach((d, i) => {
+            const g = legend1.append("g")
+                .attr("transform", `translate(0, ${i * 28})`);
+
+            g.append("rect")
+                .attr("width", 18)
+                .attr("height", 18)
+                .attr("fill", d.color)
+                .attr("rx", 4);
+
+            g.append("text")
+                .attr("x", 25)
+                .attr("y", 14)
+                .attr("font-size", "13px")
+                .text(`${d.status} (${d.value}%)`);
+        });
+
+        // ============================================
+        // 比較ドーナツ（複数のドーナツチャートで比較）
+        // ============================================
+        const budget2023 = [
+            {dept: "開発", value: 40},
+            {dept: "マーケティング", value: 25},
+            {dept: "営業", value: 20},
+            {dept: "管理", value: 15}
+        ];
+
+        const budget2024 = [
+            {dept: "開発", value: 45},
+            {dept: "マーケティング", value: 30},
+            {dept: "営業", value: 15},
+            {dept: "管理", value: 10}
+        ];
+
+        // 部門ごとの色定義
+        const deptColors = {
+            "開発": "#3498db",
+            "マーケティング": "#e74c3c",
+            "営業": "#2ecc71",
+            "管理": "#f39c12"
+        };
+
+        // ============================================
+        // 比較用ドーナツチャート作成関数
+        // ============================================
+        // selector: HTML要素のセレクタ
+        // data: データ配列
+        // year: 年の表示（中央に表示）
+        function createComparisonDonut(selector, data, year) {
+            const width = 300;
+            const height = 300;
+            const radius = Math.min(width, height) / 2 - 20;
+            const innerRadius = radius * 0.55;
+
+            const svg = d3.select(selector)
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width/2}, ${height/2})`);
+
+            // パイ生成器
+            const pie = d3.pie()
+                .value(d => d.value)
+                .sort(null)
+                .padAngle(0.02);
+
+            // アーク生成器
+            const arc = d3.arc()
+                .innerRadius(innerRadius)
+                .outerRadius(radius)
+                .cornerRadius(3);
+
+            // ラベル配置用のアーク（外周近くに配置）
+            const labelArc = d3.arc()
+                .innerRadius(radius * 0.8)
+                .outerRadius(radius * 0.8);
+
+            // スライスの描画
+            svg.selectAll(".slice")
+                .data(pie(data))
+                .enter()
+                .append("path")
+                .attr("fill", d => deptColors[d.data.dept])
+                .attr("stroke", "white")
+                .attr("stroke-width", 2)
+                .transition()
+                .duration(800)
+                .attrTween("d", function(d) {
+                    // アニメーション: 0度から徐々に広がる
+                    const interpolate = d3.interpolate({startAngle: 0, endAngle: 0}, d);
+                    return t => arc(interpolate(t));
+                });
+
+            // パーセントラベル
+            svg.selectAll(".label")
+                .data(pie(data))
+                .enter()
+                .append("text")
+                .attr("transform", d => `translate(${labelArc.centroid(d)})`)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "11px")
+                .attr("font-weight", "bold")
+                .attr("fill", "white")
+                .text(d => d.data.value + "%")
+                .style("opacity", 0)
+                .transition()
+                .delay(600)
+                .duration(300)
+                .style("opacity", 1);
+
+            // 中央の年表示
+            svg.append("text")
+                .attr("text-anchor", "middle")
+                .attr("y", 5)
+                .attr("font-size", "24px")
+                .attr("font-weight", "bold")
+                .attr("fill", "#333")
+                .text(year);
+
+            // 凡例（最初のチャートのみ表示）
+            if (year === "2023") {
+                const legend = svg.append("g")
+                    .attr("transform", `translate(${radius + 30}, ${-60})`);
+
+                // Object.entries(): オブジェクトを[キー, 値]の配列に変換
+                Object.entries(deptColors).forEach(([dept, color], i) => {
+                    const g = legend.append("g")
+                        .attr("transform", `translate(0, ${i * 25})`);
+
+                    g.append("rect")
+                        .attr("width", 14)
+                        .attr("height", 14)
+                        .attr("fill", color)
+                        .attr("rx", 3);
+
+                    g.append("text")
+                        .attr("x", 20)
+                        .attr("y", 12)
+                        .attr("font-size", "12px")
+                        .text(dept);
+                });
+            }
+        }
+
+        // ============================================
+        // ドーナツチャートを作成（2023年と2024年の比較）
+        // ============================================
+        createComparisonDonut("#budget-2023", budget2023, "2023");
+        createComparisonDonut("#budget-2024", budget2024, "2024");
+    </script>
+</body>
+</html>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>20 - ブラッシング</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .instruction {
+            background: #e8f4fd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        .selection-info {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .selection {
+            fill: rgba(74, 144, 217, 0.3);
+            stroke: #4a90d9;
+            stroke-width: 1;
+        }
+        .dot {
+            transition: opacity 0.15s;
+        }
+        .dot.dimmed {
+            opacity: 0.2;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357abd;
+        }
+    </style>
+</head>
+<body>
+    <h1>20 - ブラッシング</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> d3.brush()を使った範囲選択、連動表示、フィルタリング</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>2Dブラッシング（散布図）</h2>
+        <div class="instruction">
+            ドラッグして範囲を選択すると、その範囲内のデータがハイライトされます。
+        </div>
+        <div class="controls">
+            <button onclick="clearBrush2D()">選択をクリア</button>
+        </div>
+        <div id="brush-scatter"></div>
+        <div class="selection-info" id="scatter-info">選択されたデータ: 0個</div>
+    </div>
+
+    <div class="chart-container">
+        <h2>連動ブラッシング（フォーカス+コンテキスト）</h2>
+        <div class="instruction">
+            下のチャートでブラッシングすると、上のチャートがズームされます。
+        </div>
+        <div id="focus-context"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // ブラッシングとは？
+        // ============================================
+        // d3.brush()を使ってドラッグで範囲を選択するインタラクション
+        // 主な用途：
+        // 1. データのフィルタリング（範囲選択）
+        // 2. フォーカス+コンテキスト（詳細表示と全体表示の連動）
+        // 3. データの絞り込み
+        // ブラシの種類：
+        // - d3.brush(): 2Dブラシ（XY方向）
+        // - d3.brushX(): X軸方向のみ
+        // - d3.brushY(): Y軸方向のみ
+
+        // ============================================
+        // 1. 2Dブラッシング（散布図での範囲選択）
+        // ============================================
+
+        // ランダムな散布図データを生成
+        const scatterData = d3.range(150).map(i => ({
+            id: i,
+            x: Math.random() * 100,
+            y: Math.random() * 100,
+            category: ["A", "B", "C"][Math.floor(Math.random() * 3)]
+        }));
+
+        const colorMap = {A: "#e74c3c", B: "#3498db", C: "#2ecc71"};
+
+        const margin1 = {top: 20, right: 20, bottom: 40, left: 50};
+        const width1 = 600 - margin1.left - margin1.right;
+        const height1 = 400 - margin1.top - margin1.bottom;
+
+        const svg1 = d3.select("#brush-scatter")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        const xScale1 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([0, width1]);
+
+        const yScale1 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([height1, 0]);
+
+        // 軸
+        svg1.append("g")
+            .attr("transform", `translate(0,${height1})`)
+            .call(d3.axisBottom(xScale1));
+
+        svg1.append("g")
+            .call(d3.axisLeft(yScale1));
+
+        // データポイント
+        const dots = svg1.selectAll(".dot")
+            .data(scatterData)
+            .enter()
+            .append("circle")
+            .attr("class", "dot")
+            .attr("cx", d => xScale1(d.x))
+            .attr("cy", d => yScale1(d.y))
+            .attr("r", 6)
+            .attr("fill", d => colorMap[d.category])
+            .attr("opacity", 0.7);
+
+        // ============================================
+        // ブラシの定義
+        // ============================================
+
+        const brush1 = d3.brush()
+            // extent: ブラシ可能な範囲（チャート全体）
+            .extent([[0, 0], [width1, height1]])
+            // ブラシイベント: start（開始）, brush（ドラッグ中）, end（終了）
+            .on("start brush end", brushed1);
+
+        // ブラシをSVGに追加
+        svg1.append("g")
+            .attr("class", "brush")
+            .call(brush1);  // ブラシ動作を適用
+
+        // ============================================
+        // ブラシイベントハンドラ
+        // ============================================
+
+        function brushed1(event) {
+            // selection: 選択範囲の座標 [[x0, y0], [x1, y1]]
+            // nullの場合は選択なし
+            const selection = event.selection;
+            let selectedCount = 0;
+
+            if (selection) {
+                // 分割代入で選択範囲の座標を取得
+                const [[x0, y0], [x1, y1]] = selection;
+
+                // 各ドットが選択範囲内かどうかをチェック
+                dots.classed("dimmed", d => {
+                    // スケールを使ってデータ値を画面座標に変換
+                    const cx = xScale1(d.x);
+                    const cy = yScale1(d.y);
+                    // 選択範囲内かどうかを判定
+                    const isSelected = cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1;
+                    if (isSelected) selectedCount++;
+                    // dimmedクラス: 選択されていない要素を薄く表示
+                    return !isSelected;  // 選択されていない = dimmed
+                });
+            } else {
+                // 選択が解除された場合、全てのdimmedクラスを削除
+                dots.classed("dimmed", false);
+            }
+
+            // 選択されたデータ数を表示
+            document.getElementById("scatter-info").textContent =
+                selection ? `選択されたデータ: ${selectedCount}個` : "選択されたデータ: 0個";
+        }
+
+        // ブラシをクリア（選択を解除）
+        function clearBrush2D() {
+            // brush.move(null): ブラシ選択を解除
+            svg1.select(".brush").call(brush1.move, null);
+        }
+
+        // 凡例
+        const legend1 = svg1.append("g")
+            .attr("transform", `translate(${width1 - 80}, 10)`);
+
+        Object.entries(colorMap).forEach(([cat, color], i) => {
+            const g = legend1.append("g")
+                .attr("transform", `translate(0, ${i * 22})`);
+
+            g.append("circle")
+                .attr("r", 6)
+                .attr("fill", color);
+
+            g.append("text")
+                .attr("x", 12)
+                .attr("y", 4)
+                .attr("font-size", "12px")
+                .text(`カテゴリ ${cat}`);
+        });
+
+        // ============================================
+        // 2. フォーカス+コンテキストパターン
+        // ============================================
+        // データビジュアライゼーションの定番パターン
+        // - フォーカス: 詳細表示（上部）
+        // - コンテキスト: 全体表示（下部、ブラシで範囲選択）
+        // コンテキストでブラッシングすると、フォーカスがその範囲にズーム
+
+        // 時系列データを生成（200日分）
+        const timeData = d3.range(200).map(i => ({
+            date: new Date(2024, 0, 1 + i),  // 2024/1/1から200日分
+            value: 50 + Math.sin(i / 10) * 20 + Math.random() * 15  // 正弦波＋ノイズ
+        }));
+
+        const margin2 = {top: 20, right: 20, bottom: 100, left: 50};
+        const margin2Context = {top: 330, right: 20, bottom: 30, left: 50};
+        const width2 = 700 - margin2.left - margin2.right;
+        const height2 = 300 - margin2.top - margin2.bottom;
+        const height2Context = 400 - margin2Context.top - margin2Context.bottom;
+
+        const svg2 = d3.select("#focus-context")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", 400);
+
+        // クリップパス
+        svg2.append("defs")
+            .append("clipPath")
+            .attr("id", "clip")
+            .append("rect")
+            .attr("width", width2)
+            .attr("height", height2);
+
+        const focus = svg2.append("g")
+            .attr("class", "focus")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        const context = svg2.append("g")
+            .attr("class", "context")
+            .attr("transform", `translate(${margin2Context.left},${margin2Context.top})`);
+
+        // スケール
+        const xScaleFocus = d3.scaleTime()
+            .domain(d3.extent(timeData, d => d.date))
+            .range([0, width2]);
+
+        const xScaleContext = d3.scaleTime()
+            .domain(xScaleFocus.domain())
+            .range([0, width2]);
+
+        const yScaleFocus = d3.scaleLinear()
+            .domain([0, 100])
+            .range([height2, 0]);
+
+        const yScaleContext = d3.scaleLinear()
+            .domain(yScaleFocus.domain())
+            .range([height2Context, 0]);
+
+        // ライン生成器
+        const lineFocus = d3.line()
+            .x(d => xScaleFocus(d.date))
+            .y(d => yScaleFocus(d.value))
+            .curve(d3.curveMonotoneX);
+
+        const lineContext = d3.line()
+            .x(d => xScaleContext(d.date))
+            .y(d => yScaleContext(d.value))
+            .curve(d3.curveMonotoneX);
+
+        const areaContext = d3.area()
+            .x(d => xScaleContext(d.date))
+            .y0(height2Context)
+            .y1(d => yScaleContext(d.value))
+            .curve(d3.curveMonotoneX);
+
+        // フォーカス領域
+        focus.append("g")
+            .attr("clip-path", "url(#clip)")
+            .append("path")
+            .datum(timeData)
+            .attr("class", "line")
+            .attr("fill", "none")
+            .attr("stroke", "#4a90d9")
+            .attr("stroke-width", 2)
+            .attr("d", lineFocus);
+
+        focus.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(xScaleFocus).tickFormat(d3.timeFormat("%m/%d")));
+
+        focus.append("g")
+            .attr("class", "y-axis")
+            .call(d3.axisLeft(yScaleFocus));
+
+        // コンテキスト領域
+        context.append("path")
+            .datum(timeData)
+            .attr("class", "area")
+            .attr("fill", "#4a90d9")
+            .attr("fill-opacity", 0.3)
+            .attr("d", areaContext);
+
+        context.append("path")
+            .datum(timeData)
+            .attr("class", "line")
+            .attr("fill", "none")
+            .attr("stroke", "#4a90d9")
+            .attr("stroke-width", 1)
+            .attr("d", lineContext);
+
+        context.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", `translate(0,${height2Context})`)
+            .call(d3.axisBottom(xScaleContext).tickFormat(d3.timeFormat("%m/%d")));
+
+        // ============================================
+        // X軸ブラシの設定（コンテキスト領域）
+        // ============================================
+
+        // brushX(): X軸方向のみのブラシ（水平方向の範囲選択）
+        const brushX = d3.brushX()
+            .extent([[0, 0], [width2, height2Context]])  // ブラシ範囲
+            .on("brush end", brushedContext);  // ブラシイベント
+
+        // ブラシをコンテキストに追加し、初期選択を全範囲に設定
+        const brushGroup = context.append("g")
+            .attr("class", "brush")
+            .call(brushX)
+            // 初期状態で全範囲を選択（全データを表示）
+            .call(brushX.move, xScaleContext.range());
+
+        // ============================================
+        // ブラシイベントハンドラ（コンテキスト → フォーカス連動）
+        // ============================================
+
+        function brushedContext(event) {
+            // sourceEvent: ユーザー操作によるイベントかどうか
+            // プログラマティックな変更の場合は無視
+            if (!event.sourceEvent) return;
+
+            // 選択範囲（なければ全範囲）
+            const selection = event.selection || xScaleContext.range();
+
+            // ============================================
+            // スケールの反転（画面座標 → データ値）
+            // ============================================
+            // invert(): スケールの逆変換（座標からデータ値へ）
+            // map(): 選択範囲の両端を日付に変換
+            xScaleFocus.domain(selection.map(xScaleContext.invert));
+
+            // フォーカス領域のラインと軸を更新
+            focus.select(".line").attr("d", lineFocus);
+            focus.select(".x-axis").call(d3.axisBottom(xScaleFocus).tickFormat(d3.timeFormat("%m/%d")));
+        }
+
+        // ラベル
+        focus.append("text")
+            .attr("x", width2 / 2)
+            .attr("y", -5)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("font-weight", "bold")
+            .text("詳細表示（フォーカス）");
+
+        context.append("text")
+            .attr("x", width2 / 2)
+            .attr("y", -5)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text("全体表示（コンテキスト）- ドラッグで範囲選択");
+    </script>
+</body>
+</html>

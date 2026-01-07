@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>18 - データの更新</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #357abd;
+        }
+        .data-display {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 10px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .grid line {
+            stroke: #e0e0e0;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>18 - データの更新</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> リアルタイムデータ更新、General Update Pattern、スムーズなトランジション</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>リアルタイム更新チャート</h2>
+        <div class="controls">
+            <button onclick="toggleRealtime()">リアルタイム更新: <span id="realtime-status">OFF</span></button>
+            <button onclick="addRandomPoint()">データ追加</button>
+            <button onclick="resetData()">リセット</button>
+        </div>
+        <div id="realtime-chart"></div>
+        <div class="data-display" id="data-display"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>データセット切り替え</h2>
+        <div class="controls">
+            <button onclick="setDataset('week')">週間データ</button>
+            <button onclick="setDataset('month')">月間データ</button>
+            <button onclick="setDataset('year')">年間データ</button>
+        </div>
+        <div id="dataset-chart"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // データ更新とは？
+        // ============================================
+        // D3.jsの最も強力な機能の一つ：データの変更に応じてチャートを更新
+        // 主な技術：
+        // 1. General Update Pattern（更新パターン）
+        //    - Enter: 新しいデータに対応する要素を追加
+        //    - Update: 既存データの変更を反映
+        //    - Exit: 削除されたデータの要素を除去
+        // 2. データバインディングのキー関数
+        //    - データの一意性を保証
+        // 3. トランジションでスムーズなアニメーション
+
+        // ============================================
+        // 1. リアルタイム更新チャート
+        // ============================================
+        // 時系列データを1秒ごとに追加・更新
+
+        // グローバル変数
+        let realtimeData = [];  // リアルタイムデータを保持
+        const maxDataPoints = 20;  // 最大データポイント数
+        let isRealtime = false;  // リアルタイム更新のON/OFF
+        let realtimeInterval = null;  // setIntervalのID
+
+        // マージン設定
+        const margin1 = {top: 30, right: 30, bottom: 40, left: 50};
+        const width1 = 700 - margin1.left - margin1.right;
+        const height1 = 300 - margin1.top - margin1.bottom;
+
+        // SVGコンテナを作成
+        const svg1 = d3.select("#realtime-chart")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // スケール設定
+        // X軸: データポイントのインデックス（動的に変わる）
+        const xScale1 = d3.scaleLinear().range([0, width1]);
+        // Y軸: 値（0〜100で固定）
+        const yScale1 = d3.scaleLinear().domain([0, 100]).range([height1, 0]);
+
+        // グリッド
+        svg1.append("g")
+            .attr("class", "grid y-grid")
+            .call(d3.axisLeft(yScale1).tickSize(-width1).tickFormat(""));
+
+        // 軸
+        const xAxis1 = svg1.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", `translate(0,${height1})`);
+
+        svg1.append("g")
+            .attr("class", "y-axis")
+            .call(d3.axisLeft(yScale1));
+
+        // ラインパス
+        const linePath = svg1.append("path")
+            .attr("fill", "none")
+            .attr("stroke", "#4a90d9")
+            .attr("stroke-width", 2);
+
+        // エリアパス
+        const areaPath = svg1.append("path")
+            .attr("fill", "#4a90d9")
+            .attr("fill-opacity", 0.2);
+
+        // ライン生成器
+        const line1 = d3.line()
+            .x((d, i) => xScale1(i))
+            .y(d => yScale1(d.value))
+            .curve(d3.curveMonotoneX);
+
+        const area1 = d3.area()
+            .x((d, i) => xScale1(i))
+            .y0(height1)
+            .y1(d => yScale1(d.value))
+            .curve(d3.curveMonotoneX);
+
+        // ============================================
+        // チャート更新関数（General Update Pattern）
+        // ============================================
+        // データが変更されるたびに呼び出される
+
+        function updateRealtimeChart() {
+            // X軸のドメインを更新（データ数に応じて変化）
+            xScale1.domain([0, Math.max(realtimeData.length - 1, 1)]);
+
+            // X軸をアニメーション付きで更新
+            xAxis1.transition().duration(300).call(d3.axisBottom(xScale1).ticks(10));
+
+            // ライン（折れ線）を更新
+            // datum(): 配列全体を1つの要素にバインド
+            linePath.datum(realtimeData)
+                .transition()
+                .duration(300)
+                .attr("d", line1);  // ラインジェネレータを適用
+
+            // エリア（塗りつぶし）を更新
+            areaPath.datum(realtimeData)
+                .transition()
+                .duration(300)
+                .attr("d", area1);  // エリアジェネレータを適用
+
+            // ============================================
+            // ドット更新（General Update Pattern の実践）
+            // ============================================
+            // data()の第2引数：キー関数（データの一意性を保証）
+            // (d, i) => d.id: 各データオブジェクトのidプロパティをキーとして使用
+            const dots = svg1.selectAll(".dot")
+                .data(realtimeData, (d, i) => d.id);
+
+            // === Exit: 削除されたデータに対応する要素を除去 ===
+            dots.exit()
+                .transition()
+                .duration(300)
+                .attr("r", 0)  // 半径0に縮小
+                .remove();  // DOM から削除
+
+            // === Enter: 新しいデータに対応する要素を追加 ===
+            const dotsEnter = dots.enter()
+                .append("circle")
+                .attr("class", "dot")
+                .attr("r", 0)  // 初期状態は半径0
+                .attr("fill", "#e74c3c");
+
+            // === Update: Enter と既存要素を結合して更新 ===
+            // merge(): enterとupdateを結合
+            dotsEnter.merge(dots)
+                .transition()
+                .duration(300)
+                // i: データ配列内のインデックス（0, 1, 2, ...）
+                .attr("cx", (d, i) => xScale1(i))
+                .attr("cy", d => yScale1(d.value))
+                .attr("r", 4);  // 最終的な半径
+
+            // データ表示エリアを更新
+            updateDataDisplay();
+        }
+
+        // データ表示エリアの更新
+        function updateDataDisplay() {
+            const display = document.getElementById("data-display");
+            // map(): 各データを文字列に変換
+            // toFixed(1): 小数点以下1桁に丸める
+            // join(", "): カンマ区切りの文字列に結合
+            display.textContent = realtimeData.map((d, i) =>
+                `[${i}] ${d.value.toFixed(1)}`
+            ).join(", ");
+        }
+
+        // ============================================
+        // ランダムなデータポイントを追加
+        // ============================================
+
+        function addRandomPoint() {
+            // 前回の値を基準にランダムウォークを生成
+            const lastValue = realtimeData.length > 0
+                ? realtimeData[realtimeData.length - 1].value
+                : 50;  // 初期値は50
+            // Math.random() - 0.5: -0.5〜0.5のランダム値
+            // 前回値から±15の範囲で変動、0〜100に制限
+            const newValue = Math.max(0, Math.min(100,
+                lastValue + (Math.random() - 0.5) * 30
+            ));
+
+            // 新しいデータポイントを追加
+            realtimeData.push({
+                id: Date.now(),  // ユニークID（タイムスタンプ）
+                value: newValue
+            });
+
+            // 最大データポイント数を超えたら古いデータを削除
+            if (realtimeData.length > maxDataPoints) {
+                realtimeData.shift();  // 配列の先頭を削除
+            }
+
+            // チャートを更新
+            updateRealtimeChart();
+        }
+
+        // リアルタイム更新のON/OFF切り替え
+        function toggleRealtime() {
+            isRealtime = !isRealtime;
+            document.getElementById("realtime-status").textContent = isRealtime ? "ON" : "OFF";
+
+            if (isRealtime) {
+                // 1秒ごとにデータを追加
+                realtimeInterval = setInterval(addRandomPoint, 1000);
+            } else {
+                // インターバルを停止
+                clearInterval(realtimeInterval);
+            }
+        }
+
+        // データをリセット
+        function resetData() {
+            realtimeData = [];
+            updateRealtimeChart();
+        }
+
+        // 初期データを生成（10個のランダムデータポイント）
+        for (let i = 0; i < 10; i++) {
+            realtimeData.push({
+                id: Date.now() + i,  // ユニークID
+                value: 50 + Math.random() * 30  // 50〜80のランダム値
+            });
+        }
+        // 初回の描画
+        updateRealtimeChart();
+
+        // ============================================
+        // 2. データセット切り替えチャート
+        // ============================================
+        // 異なるデータセット間をスムーズに切り替える
+        const datasets = {
+            week: [
+                {label: "月", value: 45},
+                {label: "火", value: 60},
+                {label: "水", value: 55},
+                {label: "木", value: 70},
+                {label: "金", value: 85},
+                {label: "土", value: 65},
+                {label: "日", value: 40}
+            ],
+            month: [
+                {label: "第1週", value: 250},
+                {label: "第2週", value: 320},
+                {label: "第3週", value: 280},
+                {label: "第4週", value: 350}
+            ],
+            year: [
+                {label: "Q1", value: 1200},
+                {label: "Q2", value: 1500},
+                {label: "Q3", value: 1350},
+                {label: "Q4", value: 1800}
+            ]
+        };
+
+        let currentDataset = "week";
+
+        const margin2 = {top: 30, right: 30, bottom: 50, left: 60};
+        const width2 = 700 - margin2.left - margin2.right;
+        const height2 = 300 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#dataset-chart")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        const xScale2 = d3.scaleBand().range([0, width2]).padding(0.3);
+        const yScale2 = d3.scaleLinear().range([height2, 0]);
+
+        // グリッド
+        const gridY = svg2.append("g")
+            .attr("class", "grid");
+
+        // 軸
+        const xAxis2 = svg2.append("g")
+            .attr("class", "x-axis")
+            .attr("transform", `translate(0,${height2})`);
+
+        const yAxis2 = svg2.append("g")
+            .attr("class", "y-axis");
+
+        // タイトル
+        const title2 = svg2.append("text")
+            .attr("x", width2 / 2)
+            .attr("y", -10)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "16px")
+            .attr("font-weight", "bold");
+
+        function setDataset(type) {
+            currentDataset = type;
+            updateDatasetChart();
+        }
+
+        function updateDatasetChart() {
+            const data = datasets[currentDataset];
+
+            // スケール更新
+            xScale2.domain(data.map(d => d.label));
+            yScale2.domain([0, d3.max(data, d => d.value) * 1.1]).nice();
+
+            // グリッド更新
+            gridY.transition()
+                .duration(500)
+                .call(d3.axisLeft(yScale2).tickSize(-width2).tickFormat(""));
+
+            // 軸更新
+            xAxis2.transition()
+                .duration(500)
+                .call(d3.axisBottom(xScale2));
+
+            yAxis2.transition()
+                .duration(500)
+                .call(d3.axisLeft(yScale2));
+
+            // タイトル更新
+            const titles = {
+                week: "週間売上",
+                month: "月間売上",
+                year: "年間売上"
+            };
+            title2.text(titles[currentDataset]);
+
+            // 棒グラフ更新（General Update Pattern）
+            const bars = svg2.selectAll(".bar")
+                .data(data, d => d.label);
+
+            // Exit
+            bars.exit()
+                .transition()
+                .duration(500)
+                .attr("y", height2)
+                .attr("height", 0)
+                .remove();
+
+            // Enter
+            const barsEnter = bars.enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("y", height2)
+                .attr("height", 0)
+                .attr("fill", "#4a90d9")
+                .attr("rx", 3);
+
+            // Update + Enter
+            barsEnter.merge(bars)
+                .transition()
+                .duration(500)
+                .attr("x", d => xScale2(d.label))
+                .attr("y", d => yScale2(d.value))
+                .attr("width", xScale2.bandwidth())
+                .attr("height", d => height2 - yScale2(d.value))
+                .attr("fill", (d, i) => d3.schemeCategory10[i % 10]);
+
+            // ラベル更新
+            const labels = svg2.selectAll(".value-label")
+                .data(data, d => d.label);
+
+            labels.exit().remove();
+
+            const labelsEnter = labels.enter()
+                .append("text")
+                .attr("class", "value-label")
+                .attr("text-anchor", "middle")
+                .attr("font-size", "12px");
+
+            labelsEnter.merge(labels)
+                .transition()
+                .duration(500)
+                .attr("x", d => xScale2(d.label) + xScale2.bandwidth() / 2)
+                .attr("y", d => yScale2(d.value) - 5)
+                .text(d => d.value);
+        }
+
+        // 初期表示
+        updateDatasetChart();
+    </script>
+</body>
+</html>

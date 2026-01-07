@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>07 - 基本的な折れ線グラフ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .grid line {
+            stroke: #e0e0e0;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+        .dot:hover {
+            r: 8;
+        }
+    </style>
+</head>
+<body>
+    <h1>07 - 基本的な折れ線グラフ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsで折れ線グラフを作成する方法 - d3.line(), カーブタイプ, データポイント</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>基本的な折れ線グラフ（気温データ）</h2>
+        <div id="basic-line"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>カーブタイプの比較</h2>
+        <div id="curve-comparison"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // 折れ線グラフとは？
+        // ============================================
+        // 折れ線グラフは、時系列データや連続的な変化を表現するのに最適です
+        // D3.jsでは d3.line() を使ってデータ点を結ぶパスを生成します
+        //
+        // 主要なコンポーネント：
+        // - d3.line(): 座標の配列からSVGパスを生成
+        // - curve(): 線の補間方法（直線、曲線など）を指定
+        // - d3.area(): 塗りつぶし領域を生成（オプション）
+
+        // ============================================
+        // 1. 基本的な折れ線グラフ
+        // ============================================
+
+        // サンプルデータ：東京の月間平均気温
+        const temperatureData = [
+            {month: "1月", temp: 5.2},
+            {month: "2月", temp: 6.1},
+            {month: "3月", temp: 9.4},
+            {month: "4月", temp: 14.3},
+            {month: "5月", temp: 18.8},
+            {month: "6月", temp: 21.9},
+            {month: "7月", temp: 25.4},
+            {month: "8月", temp: 27.1},
+            {month: "9月", temp: 23.5},
+            {month: "10月", temp: 17.6},
+            {month: "11月", temp: 12.3},
+            {month: "12月", temp: 7.4}
+        ];
+
+        const margin1 = {top: 30, right: 30, bottom: 50, left: 60};
+        const width1 = 700 - margin1.left - margin1.right;
+        const height1 = 350 - margin1.top - margin1.bottom;
+
+        const svg1 = d3.select("#basic-line")
+            .append("svg")
+            .attr("width", width1 + margin1.left + margin1.right)
+            .attr("height", height1 + margin1.top + margin1.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // ============================================
+        // スケールの設定
+        // ============================================
+
+        // X軸: scalePoint（ポイントスケール）
+        // カテゴリデータを点として配置（scaleBandと異なり幅を持たない）
+        const x1 = d3.scalePoint()
+            .domain(temperatureData.map(d => d.month))
+            .range([0, width1]);
+
+        // Y軸: 0〜30度の範囲
+        const y1 = d3.scaleLinear()
+            .domain([0, 30])
+            .range([height1, 0]);
+
+        // グリッド線を描画
+        svg1.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y1)
+                .tickSize(-width1)
+                .tickFormat("")
+            );
+
+        // ============================================
+        // ライン生成関数の作成
+        // ============================================
+        // d3.line() はデータ配列からSVGのパス文字列を生成します
+
+        const line1 = d3.line()
+            .x(d => x1(d.month))        // X座標の計算方法
+            .y(d => y1(d.temp))         // Y座標の計算方法
+            .curve(d3.curveMonotoneX);  // カーブタイプ（滑らかな曲線）
+
+        // ============================================
+        // SVGグラデーションの定義
+        // ============================================
+        // defs内にグラデーションを定義し、後で参照する
+
+        const gradient = svg1.append("defs")
+            .append("linearGradient")
+            .attr("id", "line-gradient")         // 参照用のID
+            .attr("gradientUnits", "userSpaceOnUse")
+            .attr("x1", 0)
+            .attr("y1", y1(0))                   // 下端（0度）
+            .attr("x2", 0)
+            .attr("y2", y1(30));                 // 上端（30度）
+
+        // グラデーションの色停止点
+        gradient.append("stop")
+            .attr("offset", "0%")                // 下端は青（寒い）
+            .attr("stop-color", "#2196F3");
+
+        gradient.append("stop")
+            .attr("offset", "100%")              // 上端は赤（暑い）
+            .attr("stop-color", "#F44336");
+
+        // ============================================
+        // エリア（塗りつぶし領域）の描画
+        // ============================================
+        // d3.area() は線の下の領域を塗りつぶすパスを生成
+
+        const area = d3.area()
+            .x(d => x1(d.month))      // X座標
+            .y0(height1)              // 下端（グラフの底）
+            .y1(d => y1(d.temp))      // 上端（データ値）
+            .curve(d3.curveMonotoneX);
+
+        svg1.append("path")
+            .datum(temperatureData)           // 単一パスにはdatum()を使用
+            .attr("fill", "url(#line-gradient)")  // グラデーションを参照
+            .attr("fill-opacity", 0.2)        // 半透明
+            .attr("d", area);                 // パスデータ
+
+        // ============================================
+        // 折れ線の描画
+        // ============================================
+
+        svg1.append("path")
+            .datum(temperatureData)
+            .attr("fill", "none")                     // 塗りつぶしなし
+            .attr("stroke", "url(#line-gradient)")    // 線の色（グラデーション）
+            .attr("stroke-width", 3)                  // 線の太さ
+            .attr("d", line1);                        // パスデータ
+
+        // ============================================
+        // データポイント（円）の描画
+        // ============================================
+
+        svg1.selectAll(".dot")
+            .data(temperatureData)
+            .enter()
+            .append("circle")
+            .attr("class", "dot")
+            .attr("cx", d => x1(d.month))
+            .attr("cy", d => y1(d.temp))
+            .attr("r", 5)
+            .attr("fill", "#fff")           // 白い塗りつぶし
+            .attr("stroke", "#e74c3c")      // 赤い枠線
+            .attr("stroke-width", 2)
+            .style("cursor", "pointer");
+
+        // データラベル（値を表示）
+        svg1.selectAll(".label")
+            .data(temperatureData)
+            .enter()
+            .append("text")
+            .attr("class", "label")
+            .attr("x", d => x1(d.month))
+            .attr("y", d => y1(d.temp) - 12)  // ポイントの少し上
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .attr("fill", "#666")
+            .text(d => d.temp + "°C");
+
+        // 軸の描画
+        svg1.append("g")
+            .attr("transform", `translate(0,${height1})`)
+            .call(d3.axisBottom(x1));
+
+        svg1.append("g")
+            .call(d3.axisLeft(y1).tickFormat(d => d + "°C"));
+
+        // タイトル
+        svg1.append("text")
+            .attr("x", width1 / 2)
+            .attr("y", -10)
+            .attr("text-anchor", "middle")
+            .attr("font-weight", "bold")
+            .text("東京の月間平均気温");
+
+        // ============================================
+        // 2. カーブタイプの比較
+        // ============================================
+        // D3.jsは様々なカーブ（線の補間方法）を提供しています
+        // データの性質に応じて適切なカーブを選択しましょう
+
+        // テスト用データ
+        const curveData = [
+            {x: 0, y: 20},
+            {x: 1, y: 40},
+            {x: 2, y: 30},
+            {x: 3, y: 60},
+            {x: 4, y: 45},
+            {x: 5, y: 70},
+            {x: 6, y: 50}
+        ];
+
+        // 比較するカーブタイプの定義
+        // curveLinear: 直線で結ぶ（デフォルト）
+        // curveStep: 階段状
+        // curveMonotoneX: X方向に単調増加/減少を保証する滑らかな曲線
+        // curveBasis: B-スプライン曲線（データ点を通らないことがある）
+        // curveCardinal: カーディナルスプライン（滑らかでデータ点を通る）
+        const curves = [
+            {name: "curveLinear", curve: d3.curveLinear, color: "#e74c3c"},
+            {name: "curveStep", curve: d3.curveStep, color: "#3498db"},
+            {name: "curveMonotoneX", curve: d3.curveMonotoneX, color: "#2ecc71"},
+            {name: "curveBasis", curve: d3.curveBasis, color: "#9b59b6"},
+            {name: "curveCardinal", curve: d3.curveCardinal, color: "#f39c12"}
+        ];
+
+        const margin2 = {top: 30, right: 150, bottom: 50, left: 50};
+        const width2 = 750 - margin2.left - margin2.right;
+        const height2 = 300 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#curve-comparison")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        const x2 = d3.scaleLinear()
+            .domain([0, 6])
+            .range([0, width2]);
+
+        const y2 = d3.scaleLinear()
+            .domain([0, 80])
+            .range([height2, 0]);
+
+        // グリッド
+        svg2.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y2)
+                .tickSize(-width2)
+                .tickFormat("")
+            );
+
+        // 各カーブタイプを描画
+        // 同じデータを異なるカーブで描画して比較
+        curves.forEach((c, i) => {
+            // 各カーブ用のライン生成関数を作成
+            const lineGenerator = d3.line()
+                .x(d => x2(d.x))
+                .y(d => y2(d.y))
+                .curve(c.curve);  // カーブタイプを設定
+
+            svg2.append("path")
+                .datum(curveData)
+                .attr("fill", "none")
+                .attr("stroke", c.color)
+                .attr("stroke-width", 2)
+                .attr("d", lineGenerator);
+        });
+
+        // データポイント（すべてのカーブが通る基準点）
+        svg2.selectAll(".point")
+            .data(curveData)
+            .enter()
+            .append("circle")
+            .attr("cx", d => x2(d.x))
+            .attr("cy", d => y2(d.y))
+            .attr("r", 4)
+            .attr("fill", "#333");
+
+        // 軸
+        svg2.append("g")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(x2));
+
+        svg2.append("g")
+            .call(d3.axisLeft(y2));
+
+        // ============================================
+        // 凡例（Legend）の作成
+        // ============================================
+        // グラフの右側に各カーブの説明を表示
+
+        const legend = svg2.append("g")
+            .attr("transform", `translate(${width2 + 20}, 0)`);
+
+        curves.forEach((c, i) => {
+            const g = legend.append("g")
+                .attr("transform", `translate(0, ${i * 22})`);
+
+            // 凡例の線（サンプル）
+            g.append("line")
+                .attr("x1", 0)
+                .attr("x2", 25)
+                .attr("y1", 10)
+                .attr("y2", 10)
+                .attr("stroke", c.color)
+                .attr("stroke-width", 2);
+
+            // 凡例のテキスト
+            g.append("text")
+                .attr("x", 30)
+                .attr("y", 14)
+                .attr("font-size", "11px")
+                .text(c.name);
+        });
+    </script>
+</body>
+</html>

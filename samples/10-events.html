@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>10 - イベントハンドリング</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        #event-log {
+            background: #1a1a2e;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 8px;
+            height: 120px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .info-box {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #4a90d9;
+        }
+    </style>
+</head>
+<body>
+    <h1>10 - イベントハンドリング</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> D3.jsでのマウスイベント、クリック、ホバー、ドラッグの処理</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>マウスイベント（クリック、ホバー）</h2>
+        <div id="mouse-events"></div>
+        <div id="event-log"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>インタラクティブな棒グラフ</h2>
+        <div id="interactive-bars"></div>
+        <div class="info-box" id="bar-info">
+            棒グラフにマウスを重ねると詳細が表示されます
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h2>ドラッグ可能な要素</h2>
+        <div id="drag-demo"></div>
+    </div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // イベントハンドリングとは？
+        // ============================================
+        // D3.jsでは .on() メソッドを使ってイベントを処理します
+        //
+        // 基本的な使い方：
+        // selection.on("eventName", function(event, d) { ... })
+        //
+        // 主なイベント：
+        // - click: クリック
+        // - dblclick: ダブルクリック
+        // - mouseenter/mouseleave: マウス入退場
+        // - mousemove: マウス移動
+        // - mousedown/mouseup: マウスボタン押下/解放
+        //
+        // コールバック関数の引数：
+        // - event: イベントオブジェクト（座標情報など）
+        // - d: データ（バインドされている場合）
+        // - this: イベントが発生したDOM要素
+
+        // イベントログ表示用のヘルパー関数
+        const eventLog = d3.select("#event-log");
+        function log(message) {
+            const time = new Date().toLocaleTimeString();
+            eventLog.insert("div", ":first-child")
+                .text(`[${time}] ${message}`);
+        }
+
+        // ============================================
+        // 1. マウスイベントのデモ
+        // ============================================
+        const width1 = 600;
+        const height1 = 200;
+
+        const svg1 = d3.select("#mouse-events")
+            .append("svg")
+            .attr("width", width1)
+            .attr("height", height1)
+            .style("background", "#fafafa")
+            .style("border", "1px solid #ddd");
+
+        // クリック対象の円
+        const shapes = [
+            {type: "circle", x: 100, y: 100, color: "#e74c3c"},
+            {type: "circle", x: 250, y: 100, color: "#3498db"},
+            {type: "circle", x: 400, y: 100, color: "#2ecc71"},
+            {type: "circle", x: 550, y: 100, color: "#9b59b6"}
+        ];
+
+        const circles = svg1.selectAll("circle")
+            .data(shapes)
+            .enter()
+            .append("circle")
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y)
+            .attr("r", 40)
+            .attr("fill", d => d.color)
+            .style("cursor", "pointer");
+
+        // ============================================
+        // イベントハンドラの登録
+        // ============================================
+        // .on() メソッドでイベントを登録
+        // 複数のイベントをチェーンで登録できます
+
+        circles
+            // クリックイベント
+            .on("click", function(event, d) {
+                log(`クリック: ${d.color} の円`);
+                // d3.select(this) でクリックされた要素を選択
+                d3.select(this)
+                    .transition()
+                    .duration(100)
+                    .attr("r", 50)        // 一瞬大きくして
+                    .transition()
+                    .duration(100)
+                    .attr("r", 40);       // 元に戻す
+            })
+            // ダブルクリックイベント
+            .on("dblclick", function(event, d) {
+                log(`ダブルクリック: ${d.color} の円`);
+                const newColor = d3.schemeCategory10[Math.floor(Math.random() * 10)];
+                d3.select(this)
+                    .transition()
+                    .duration(300)
+                    .attr("fill", newColor);  // 色を変更
+            })
+            // マウスエンター（ホバー開始）
+            .on("mouseenter", function(event, d) {
+                log(`マウスエンター: ${d.color}`);
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr("r", 50)            // 大きくする
+                    .attr("stroke", "#333")   // 枠線を追加
+                    .attr("stroke-width", 3);
+            })
+            // マウスリーブ（ホバー終了）
+            .on("mouseleave", function(event, d) {
+                log(`マウスリーブ: ${d.color}`);
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr("r", 40)            // 元のサイズに戻す
+                    .attr("stroke", "none");  // 枠線を削除
+            });
+
+        // 説明テキスト
+        svg1.append("text")
+            .attr("x", width1 / 2)
+            .attr("y", 180)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("fill", "#666")
+            .text("円をクリック・ダブルクリック・ホバーしてみてください");
+
+        // ============================================
+        // 2. インタラクティブな棒グラフ
+        // ============================================
+        // ホバーとクリックで詳細情報を表示
+
+        const barData = [
+            {name: "製品A", value: 85, detail: "売上高: ¥850万, 前年比: +12%"},
+            {name: "製品B", value: 62, detail: "売上高: ¥620万, 前年比: +5%"},
+            {name: "製品C", value: 95, detail: "売上高: ¥950万, 前年比: +20%"},
+            {name: "製品D", value: 45, detail: "売上高: ¥450万, 前年比: -3%"},
+            {name: "製品E", value: 78, detail: "売上高: ¥780万, 前年比: +8%"}
+        ];
+
+        const margin2 = {top: 20, right: 30, bottom: 40, left: 50};
+        const width2 = 600 - margin2.left - margin2.right;
+        const height2 = 280 - margin2.top - margin2.bottom;
+
+        const svg2 = d3.select("#interactive-bars")
+            .append("svg")
+            .attr("width", width2 + margin2.left + margin2.right)
+            .attr("height", height2 + margin2.top + margin2.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        const x2 = d3.scaleBand()
+            .domain(barData.map(d => d.name))
+            .range([0, width2])
+            .padding(0.3);
+
+        const y2 = d3.scaleLinear()
+            .domain([0, 100])
+            .range([height2, 0]);
+
+        // 軸
+        svg2.append("g")
+            .attr("transform", `translate(0,${height2})`)
+            .call(d3.axisBottom(x2));
+
+        svg2.append("g")
+            .call(d3.axisLeft(y2));
+
+        // 棒グラフ
+        svg2.selectAll(".bar")
+            .data(barData)
+            .enter()
+            .append("rect")
+            .attr("class", "bar")
+            .attr("x", d => x2(d.name))
+            .attr("y", d => y2(d.value))
+            .attr("width", x2.bandwidth())
+            .attr("height", d => height2 - y2(d.value))
+            .attr("fill", "#4a90d9")
+            .attr("rx", 3)
+            .style("cursor", "pointer")
+            .on("mouseenter", function(event, d) {
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr("fill", "#e74c3c");
+
+                d3.select("#bar-info")
+                    .html(`<strong>${d.name}</strong><br>${d.detail}`);
+            })
+            .on("mouseleave", function() {
+                d3.select(this)
+                    .transition()
+                    .duration(200)
+                    .attr("fill", "#4a90d9");
+            })
+            .on("click", function(event, d) {
+                // 他の棒をフェードアウト
+                svg2.selectAll(".bar")
+                    .transition()
+                    .duration(300)
+                    .attr("opacity", 0.3);
+
+                d3.select(this)
+                    .transition()
+                    .duration(300)
+                    .attr("opacity", 1)
+                    .attr("fill", "#2ecc71");
+
+                setTimeout(() => {
+                    svg2.selectAll(".bar")
+                        .transition()
+                        .duration(300)
+                        .attr("opacity", 1)
+                        .attr("fill", "#4a90d9");
+                }, 1500);
+            });
+
+        // 値ラベル
+        svg2.selectAll(".value-label")
+            .data(barData)
+            .enter()
+            .append("text")
+            .attr("class", "value-label")
+            .attr("x", d => x2(d.name) + x2.bandwidth() / 2)
+            .attr("y", d => y2(d.value) - 5)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .text(d => d.value);
+
+        // ============================================
+        // 3. ドラッグ機能のデモ
+        // ============================================
+        // d3.drag() を使って要素をドラッグ可能にします
+        //
+        // ドラッグイベント：
+        // - start: ドラッグ開始
+        // - drag: ドラッグ中（移動ごとに発火）
+        // - end: ドラッグ終了
+
+        const width3 = 600;
+        const height3 = 250;
+
+        const svg3 = d3.select("#drag-demo")
+            .append("svg")
+            .attr("width", width3)
+            .attr("height", height3)
+            .style("background", "#fafafa")
+            .style("border", "1px solid #ddd");
+
+        // ドラッグ対象のデータ
+        const dragItems = [
+            {x: 100, y: 125, r: 35, color: "#ff6b6b"},
+            {x: 250, y: 125, r: 35, color: "#4ecdc4"},
+            {x: 400, y: 125, r: 35, color: "#45b7d1"},
+            {x: 550, y: 125, r: 35, color: "#f9ca24"}
+        ];
+
+        // ============================================
+        // ドラッグ動作の定義
+        // ============================================
+        // d3.drag() でドラッグビヘイビアを作成
+
+        const drag = d3.drag()
+            // ドラッグ開始時
+            .on("start", function(event, d) {
+                d3.select(this)
+                    .raise()                  // 要素を最前面に
+                    .attr("stroke", "#333")   // 枠線を追加
+                    .attr("stroke-width", 3);
+            })
+            // ドラッグ中（移動ごとに呼ばれる）
+            .on("drag", function(event, d) {
+                // event.x, event.y で現在のマウス位置を取得
+                // 画面外に出ないように制限
+                d.x = Math.max(d.r, Math.min(width3 - d.r, event.x));
+                d.y = Math.max(d.r, Math.min(height3 - d.r, event.y));
+                // 円の位置を更新
+                d3.select(this)
+                    .attr("cx", d.x)
+                    .attr("cy", d.y);
+            })
+            // ドラッグ終了時
+            .on("end", function(event, d) {
+                d3.select(this)
+                    .attr("stroke", "none");  // 枠線を削除
+            });
+
+        // ドラッグ可能な円を作成
+        svg3.selectAll(".drag-circle")
+            .data(dragItems)
+            .enter()
+            .append("circle")
+            .attr("class", "drag-circle")
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y)
+            .attr("r", d => d.r)
+            .attr("fill", d => d.color)
+            .style("cursor", "grab")
+            .call(drag);  // ドラッグビヘイビアを適用
+
+        // ドロップゾーン
+        svg3.append("rect")
+            .attr("x", 200)
+            .attr("y", 180)
+            .attr("width", 200)
+            .attr("height", 60)
+            .attr("fill", "none")
+            .attr("stroke", "#999")
+            .attr("stroke-width", 2)
+            .attr("stroke-dasharray", "5,5")
+            .attr("rx", 10);
+
+        svg3.append("text")
+            .attr("x", 300)
+            .attr("y", 215)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .attr("fill", "#999")
+            .text("ドロップゾーン");
+
+        svg3.append("text")
+            .attr("x", width3 / 2)
+            .attr("y", 25)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "14px")
+            .attr("fill", "#666")
+            .text("円をドラッグして移動できます");
+    </script>
+</body>
+</html>

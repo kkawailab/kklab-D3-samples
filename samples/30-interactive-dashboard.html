@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>30 - インタラクティブダッシュボード</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #fff;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .card-large {
+            grid-column: span 2;
+        }
+        .card-title {
+            font-size: 14px;
+            color: #8b8b8b;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .card-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .card-change {
+            font-size: 14px;
+        }
+        .positive { color: #2ecc71; }
+        .negative { color: #e74c3c; }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .kpi-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .kpi-card:nth-child(2) {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .kpi-card:nth-child(3) {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .kpi-card:nth-child(4) {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        .kpi-value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        .kpi-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        svg {
+            display: block;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 1000;
+        }
+        .filter-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        select, button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            background: #16213e;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        select:hover, button:hover {
+            background: #1f4068;
+        }
+        .grid line {
+            stroke: #2a2a4a;
+        }
+        .grid path {
+            stroke-width: 0;
+        }
+        @media (max-width: 768px) {
+            .kpi-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .card-large {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>セールスダッシュボード</h1>
+
+    <div class="filter-controls">
+        <select id="period-select" onchange="updateDashboard()">
+            <option value="week">週間</option>
+            <option value="month" selected>月間</option>
+            <option value="quarter">四半期</option>
+        </select>
+        <select id="region-select" onchange="updateDashboard()">
+            <option value="all">全地域</option>
+            <option value="tokyo">東京</option>
+            <option value="osaka">大阪</option>
+            <option value="nagoya">名古屋</option>
+        </select>
+        <button onclick="refreshData()">データ更新</button>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-value" id="kpi-revenue">¥0</div>
+            <div class="kpi-label">総売上</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value" id="kpi-orders">0</div>
+            <div class="kpi-label">注文数</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value" id="kpi-customers">0</div>
+            <div class="kpi-label">新規顧客</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value" id="kpi-conversion">0%</div>
+            <div class="kpi-label">コンバージョン率</div>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="card card-large">
+            <div class="card-title">売上推移</div>
+            <div id="sales-chart"></div>
+        </div>
+        <div class="card">
+            <div class="card-title">カテゴリ別売上</div>
+            <div id="category-chart"></div>
+        </div>
+        <div class="card">
+            <div class="card-title">地域別売上</div>
+            <div id="region-chart"></div>
+        </div>
+        <div class="card">
+            <div class="card-title">トップ製品</div>
+            <div id="products-chart"></div>
+        </div>
+        <div class="card">
+            <div class="card-title">時間帯別アクセス</div>
+            <div id="hourly-chart"></div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // インタラクティブダッシュボードとは？
+        // ============================================
+        // ダッシュボードは、複数のチャートやKPI（重要業績評価指標）を
+        // 一つの画面に統合して、データを総合的に可視化するものです
+        //
+        // このサンプルで学べること：
+        // 1. 複数のチャートタイプの組み合わせ（エリアチャート、円グラフ、棒グラフなど）
+        // 2. リアルタイムデータ更新とアニメーション
+        // 3. フィルタリングとインタラクション
+        // 4. レスポンシブなレイアウト
+        // 5. カウントアップアニメーション（数値の段階的表示）
+        //
+        // ダッシュボード設計のポイント：
+        // - 最も重要な情報を目立つ位置に配置
+        // - 色やサイズで視覚的な階層を作る
+        // - 過度な情報を避け、シンプルに保つ
+        // - インタラクティブな要素で詳細を提供
+
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // ダミーデータ生成関数
+        // ============================================
+
+        // ランダムなダッシュボードデータを生成
+        function generateData() {
+            return {
+                revenue: Math.floor(Math.random() * 5000 + 8000),
+                orders: Math.floor(Math.random() * 500 + 800),
+                customers: Math.floor(Math.random() * 100 + 150),
+                conversion: (Math.random() * 2 + 3).toFixed(1),
+                salesTrend: d3.range(30).map(i => ({
+                    date: new Date(2024, 10, i + 1),
+                    value: Math.floor(Math.random() * 200 + 300)
+                })),
+                categories: [
+                    {name: "電子機器", value: Math.floor(Math.random() * 1000 + 2000)},
+                    {name: "衣料品", value: Math.floor(Math.random() * 800 + 1500)},
+                    {name: "食品", value: Math.floor(Math.random() * 600 + 1000)},
+                    {name: "家具", value: Math.floor(Math.random() * 500 + 800)},
+                    {name: "その他", value: Math.floor(Math.random() * 400 + 500)}
+                ],
+                regions: [
+                    {name: "東京", value: Math.floor(Math.random() * 1500 + 3000)},
+                    {name: "大阪", value: Math.floor(Math.random() * 1000 + 2000)},
+                    {name: "名古屋", value: Math.floor(Math.random() * 800 + 1500)},
+                    {name: "福岡", value: Math.floor(Math.random() * 600 + 1000)},
+                    {name: "札幌", value: Math.floor(Math.random() * 400 + 800)}
+                ],
+                products: [
+                    {name: "スマートフォンX", sales: Math.floor(Math.random() * 200 + 300)},
+                    {name: "ノートPC Pro", sales: Math.floor(Math.random() * 150 + 250)},
+                    {name: "ワイヤレスイヤホン", sales: Math.floor(Math.random() * 300 + 400)},
+                    {name: "タブレットS", sales: Math.floor(Math.random() * 100 + 200)},
+                    {name: "スマートウォッチ", sales: Math.floor(Math.random() * 200 + 300)}
+                ],
+                hourly: d3.range(24).map(h => ({
+                    hour: h,
+                    value: h >= 9 && h <= 21 ? Math.floor(Math.random() * 80 + 50) : Math.floor(Math.random() * 30 + 10)
+                }))
+            };
+        }
+
+        // 初期データを生成
+        let data = generateData();
+
+        // ============================================
+        // KPI（重要業績評価指標）更新関数
+        // ============================================
+
+        // KPIカードの数値をアニメーション付きで更新
+        function updateKPIs() {
+            // 売上のカウントアップアニメーション
+            d3.select("#kpi-revenue")
+                .transition().duration(500)
+                .tween("text", function() {
+                    // d3.interpolate(): 0から実際の値まで補間
+                    const i = d3.interpolate(0, data.revenue);
+                    // t: トランジションの進行度（0から1）
+                    return t => this.textContent = `¥${Math.floor(i(t)).toLocaleString()}万`;
+                });
+
+            // 注文数のカウントアップアニメーション
+            d3.select("#kpi-orders")
+                .transition().duration(500)
+                .tween("text", function() {
+                    const i = d3.interpolate(0, data.orders);
+                    return t => this.textContent = Math.floor(i(t)).toLocaleString();
+                });
+
+            // 新規顧客数のカウントアップアニメーション
+            d3.select("#kpi-customers")
+                .transition().duration(500)
+                .tween("text", function() {
+                    const i = d3.interpolate(0, data.customers);
+                    return t => this.textContent = Math.floor(i(t)).toLocaleString();
+                });
+
+            // コンバージョン率（アニメーションなし）
+            d3.select("#kpi-conversion").text(data.conversion + "%");
+        }
+
+        // ============================================
+        // 売上推移チャート（エリアチャート）
+        // ============================================
+
+        function drawSalesChart() {
+            // 既存のチャートをクリア
+            d3.select("#sales-chart").selectAll("*").remove();
+
+            const margin = {top: 20, right: 30, bottom: 30, left: 50};
+            const width = 700 - margin.left - margin.right;
+            const height = 200 - margin.top - margin.bottom;
+
+            const svg = d3.select("#sales-chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // 時間スケール（X軸）
+            const x = d3.scaleTime()
+                .domain(d3.extent(data.salesTrend, d => d.date))  // 日付の範囲
+                .range([0, width]);
+
+            // 線形スケール（Y軸）
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data.salesTrend, d => d.value) * 1.1])  // 少し余白を追加
+                .range([height, 0]);
+
+            svg.append("g")
+                .attr("class", "grid")
+                .call(d3.axisLeft(y).tickSize(-width).tickFormat(""));
+
+            const area = d3.area()
+                .x(d => x(d.date))
+                .y0(height)
+                .y1(d => y(d.value))
+                .curve(d3.curveMonotoneX);
+
+            const line = d3.line()
+                .x(d => x(d.date))
+                .y(d => y(d.value))
+                .curve(d3.curveMonotoneX);
+
+            svg.append("path")
+                .datum(data.salesTrend)
+                .attr("fill", "url(#area-gradient)")
+                .attr("d", area);
+
+            svg.append("path")
+                .datum(data.salesTrend)
+                .attr("fill", "none")
+                .attr("stroke", "#4facfe")
+                .attr("stroke-width", 2)
+                .attr("d", line);
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x).ticks(6).tickFormat(d3.timeFormat("%m/%d")))
+                .selectAll("text, line, path")
+                .attr("stroke", "#666")
+                .attr("fill", "#888");
+
+            svg.append("g")
+                .call(d3.axisLeft(y).ticks(4))
+                .selectAll("text, line, path")
+                .attr("stroke", "#666")
+                .attr("fill", "#888");
+
+            // グラデーション
+            const defs = svg.append("defs");
+            const gradient = defs.append("linearGradient")
+                .attr("id", "area-gradient")
+                .attr("x1", "0%").attr("y1", "0%")
+                .attr("x2", "0%").attr("y2", "100%");
+            gradient.append("stop").attr("offset", "0%").attr("stop-color", "#4facfe").attr("stop-opacity", 0.5);
+            gradient.append("stop").attr("offset", "100%").attr("stop-color", "#4facfe").attr("stop-opacity", 0);
+        }
+
+        // カテゴリ別円グラフ
+        function drawCategoryChart() {
+            d3.select("#category-chart").selectAll("*").remove();
+
+            const width = 250, height = 250;
+            const radius = Math.min(width, height) / 2 - 20;
+
+            const svg = d3.select("#category-chart")
+                .append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .append("g")
+                .attr("transform", `translate(${width/2},${height/2})`);
+
+            const color = d3.scaleOrdinal()
+                .domain(data.categories.map(d => d.name))
+                .range(["#667eea", "#f093fb", "#4facfe", "#43e97b", "#f5576c"]);
+
+            const pie = d3.pie().value(d => d.value).sort(null);
+            const arc = d3.arc().innerRadius(radius * 0.5).outerRadius(radius);
+
+            svg.selectAll("path")
+                .data(pie(data.categories))
+                .enter()
+                .append("path")
+                .attr("d", arc)
+                .attr("fill", d => color(d.data.name))
+                .attr("stroke", "#16213e")
+                .attr("stroke-width", 2)
+                .style("cursor", "pointer")
+                .on("mouseenter", function(event, d) {
+                    tooltip.style("opacity", 1)
+                        .html(`<strong>${d.data.name}</strong><br>¥${d.data.value.toLocaleString()}万`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 20) + "px");
+                })
+                .on("mouseleave", () => tooltip.style("opacity", 0));
+        }
+
+        // 地域別棒グラフ
+        function drawRegionChart() {
+            d3.select("#region-chart").selectAll("*").remove();
+
+            const margin = {top: 10, right: 20, bottom: 30, left: 60};
+            const width = 250 - margin.left - margin.right;
+            const height = 220 - margin.top - margin.bottom;
+
+            const svg = d3.select("#region-chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const sortedData = [...data.regions].sort((a, b) => b.value - a.value);
+
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(sortedData, d => d.value) * 1.1])
+                .range([0, width]);
+
+            const y = d3.scaleBand()
+                .domain(sortedData.map(d => d.name))
+                .range([0, height])
+                .padding(0.3);
+
+            svg.selectAll("rect")
+                .data(sortedData)
+                .enter()
+                .append("rect")
+                .attr("x", 0)
+                .attr("y", d => y(d.name))
+                .attr("width", d => x(d.value))
+                .attr("height", y.bandwidth())
+                .attr("fill", "#4facfe")
+                .attr("rx", 4);
+
+            svg.selectAll(".label")
+                .data(sortedData)
+                .enter()
+                .append("text")
+                .attr("x", d => x(d.value) + 5)
+                .attr("y", d => y(d.name) + y.bandwidth() / 2)
+                .attr("dy", "0.35em")
+                .attr("font-size", "11px")
+                .attr("fill", "#888")
+                .text(d => `¥${d.value}`);
+
+            svg.append("g")
+                .call(d3.axisLeft(y))
+                .selectAll("text, line, path")
+                .attr("stroke", "#666")
+                .attr("fill", "#888");
+        }
+
+        // トップ製品チャート
+        function drawProductsChart() {
+            d3.select("#products-chart").selectAll("*").remove();
+
+            const margin = {top: 10, right: 20, bottom: 30, left: 120};
+            const width = 280 - margin.left - margin.right;
+            const height = 220 - margin.top - margin.bottom;
+
+            const svg = d3.select("#products-chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const sortedData = [...data.products].sort((a, b) => b.sales - a.sales);
+
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(sortedData, d => d.sales) * 1.1])
+                .range([0, width]);
+
+            const y = d3.scaleBand()
+                .domain(sortedData.map(d => d.name))
+                .range([0, height])
+                .padding(0.3);
+
+            const color = d3.scaleOrdinal(d3.schemeTableau10);
+
+            svg.selectAll("rect")
+                .data(sortedData)
+                .enter()
+                .append("rect")
+                .attr("x", 0)
+                .attr("y", d => y(d.name))
+                .attr("width", d => x(d.sales))
+                .attr("height", y.bandwidth())
+                .attr("fill", (d, i) => color(i))
+                .attr("rx", 4);
+
+            svg.append("g")
+                .call(d3.axisLeft(y))
+                .selectAll("text")
+                .attr("fill", "#888")
+                .style("font-size", "10px");
+
+            svg.selectAll("path, line").attr("stroke", "#666");
+        }
+
+        // 時間帯別チャート
+        function drawHourlyChart() {
+            d3.select("#hourly-chart").selectAll("*").remove();
+
+            const margin = {top: 10, right: 20, bottom: 30, left: 40};
+            const width = 280 - margin.left - margin.right;
+            const height = 220 - margin.top - margin.bottom;
+
+            const svg = d3.select("#hourly-chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleBand()
+                .domain(data.hourly.map(d => d.hour))
+                .range([0, width])
+                .padding(0.1);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(data.hourly, d => d.value) * 1.1])
+                .range([height, 0]);
+
+            svg.selectAll("rect")
+                .data(data.hourly)
+                .enter()
+                .append("rect")
+                .attr("x", d => x(d.hour))
+                .attr("y", d => y(d.value))
+                .attr("width", x.bandwidth())
+                .attr("height", d => height - y(d.value))
+                .attr("fill", d => d.hour >= 9 && d.hour <= 18 ? "#43e97b" : "#667eea")
+                .attr("rx", 2);
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x).tickValues([0, 6, 12, 18, 23]))
+                .selectAll("text, line, path")
+                .attr("stroke", "#666")
+                .attr("fill", "#888");
+
+            svg.append("g")
+                .call(d3.axisLeft(y).ticks(4))
+                .selectAll("text, line, path")
+                .attr("stroke", "#666")
+                .attr("fill", "#888");
+        }
+
+        // ============================================
+        // ダッシュボード管理関数
+        // ============================================
+
+        // ダッシュボード全体を更新
+        function updateDashboard() {
+            updateKPIs();           // KPIカードを更新
+            drawSalesChart();       // 売上推移チャートを描画
+            drawCategoryChart();    // カテゴリ別円グラフを描画
+            drawRegionChart();      // 地域別棒グラフを描画
+            drawProductsChart();    // トップ製品チャートを描画
+            drawHourlyChart();      // 時間帯別チャートを描画
+        }
+
+        // データを更新してダッシュボードを再描画
+        function refreshData() {
+            data = generateData();  // 新しいダミーデータを生成
+            updateDashboard();      // ダッシュボードを更新
+        }
+
+        // ============================================
+        // 初期化と自動更新
+        // ============================================
+
+        // 初回表示
+        updateDashboard();
+
+        // 自動更新タイマー（30秒ごとにデータを更新）
+        // 実際のダッシュボードでは、APIから最新データを取得することが多い
+        setInterval(refreshData, 30000);
+    </script>
+</body>
+</html>

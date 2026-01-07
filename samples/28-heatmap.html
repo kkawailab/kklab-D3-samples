@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>28 - ヒートマップ</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .description {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+        .cell {
+            cursor: pointer;
+        }
+        .cell:hover {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        select {
+            padding: 8px 16px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>28 - ヒートマップ</h1>
+    <div class="description">
+        <p><strong>学習ポイント:</strong> グリッドベースのヒートマップ、カラースケール、時系列ヒートマップ</p>
+    </div>
+
+    <div class="chart-container">
+        <h2>Webサイトアクセス時間帯別ヒートマップ</h2>
+        <div id="time-heatmap"></div>
+    </div>
+
+    <div class="chart-container">
+        <h2>相関マトリックス</h2>
+        <div class="controls">
+            <select id="color-scheme" onchange="updateColorScheme()">
+                <option value="interpolateRdBu">赤青（RdBu）</option>
+                <option value="interpolateViridis">Viridis</option>
+                <option value="interpolatePlasma">Plasma</option>
+                <option value="interpolateYlGnBu">黄緑青（YlGnBu）</option>
+            </select>
+        </div>
+        <div id="correlation-heatmap"></div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- D3.js ライブラリをCDNから読み込み -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // ============================================
+        // ヒートマップ（Heatmap）とは？
+        // ============================================
+        // ヒートマップは、2次元のマトリックスデータを色で可視化するチャートです
+        // 値の大きさを色の濃淡や色相で表現し、パターンや傾向を視覚的に把握できます
+        //
+        // 主な用途：
+        // - 時系列データの可視化（曜日×時間帯など）
+        // - 相関行列の可視化
+        // - 地理的な密度の表示
+        // - ユーザー行動の分析
+        //
+        // D3.jsでの実装：
+        // 1. データを2次元グリッドに配置
+        // 2. カラースケールで値を色にマッピング
+        // 3. SVG rectで各セルを描画
+
+        const tooltip = d3.select("#tooltip");
+
+        // ============================================
+        // 1. 時間帯別ヒートマップ
+        // ============================================
+
+        // 曜日と時間の配列を定義
+        const days = ["月", "火", "水", "木", "金", "土", "日"];
+        const hours = d3.range(24);  // [0, 1, 2, ..., 23]
+
+        // ダミーデータ生成（Webサイトアクセス数をシミュレーション）
+        const timeData = [];
+        days.forEach((day, dayIndex) => {
+            // dayIndex: 曜日のインデックス（0=月曜, 6=日曜）
+            hours.forEach(hour => {
+                // hour: 時刻（0-23）
+                // 平日の日中は高め、週末と深夜は低めのパターンを作成
+                let baseValue = 50;
+                if (dayIndex < 5) { // 平日（月〜金）
+                    if (hour >= 9 && hour <= 18) baseValue = 150;       // 営業時間
+                    else if (hour >= 7 && hour <= 21) baseValue = 100;  // 周辺時間
+                } else { // 週末（土日）
+                    if (hour >= 10 && hour <= 22) baseValue = 80;
+                }
+                // ランダムなばらつきを追加
+                const value = Math.max(0, baseValue + (Math.random() - 0.5) * 60);
+                timeData.push({day: dayIndex, hour, value});
+            });
+        });
+
+        // ============================================
+        // SVGの設定とスケール
+        // ============================================
+
+        const margin1 = {top: 50, right: 30, bottom: 30, left: 50};
+        const cellSize = 28;  // 各セルのサイズ（ピクセル）
+        const width1 = cellSize * 24 + margin1.left + margin1.right;   // 24時間分
+        const height1 = cellSize * 7 + margin1.top + margin1.bottom;   // 7曜日分
+
+        const svg1 = d3.select("#time-heatmap")
+            .append("svg")
+            .attr("width", width1)
+            .attr("height", height1)
+            .append("g")
+            .attr("transform", `translate(${margin1.left},${margin1.top})`);
+
+        // カラースケール: 値が大きいほど濃い赤色
+        const colorScale1 = d3.scaleSequential(d3.interpolateYlOrRd)
+            .domain([0, d3.max(timeData, d => d.value)]);  // 最小値0、最大値は実際のデータから
+
+        // ============================================
+        // セル（矩形）の描画
+        // ============================================
+
+        svg1.selectAll(".cell")
+            .data(timeData)  // 各時間帯のデータ
+            .enter()
+            .append("rect")
+            .attr("class", "cell")
+            .attr("x", d => d.hour * cellSize)   // x位置: 時刻に基づく
+            .attr("y", d => d.day * cellSize)    // y位置: 曜日に基づく
+            .attr("width", cellSize - 2)         // セル間に隙間を作る
+            .attr("height", cellSize - 2)
+            .attr("fill", d => colorScale1(d.value))  // 値に応じた色
+            .attr("rx", 3)                       // 角を丸くする
+            .on("mouseenter", function(event, d) {
+                // d: セルのデータ（day, hour, value）
+                tooltip.style("opacity", 1)
+                    .html(`
+                        <strong>${days[d.day]}曜日 ${d.hour}:00</strong><br>
+                        アクセス数: ${Math.round(d.value)}
+                    `)
+                    .style("left", (event.pageX + 15) + "px")
+                    .style("top", (event.pageY - 20) + "px");
+            })
+            .on("mouseleave", () => tooltip.style("opacity", 0));
+
+        // X軸（時間）
+        svg1.selectAll(".hour-label")
+            .data(hours.filter(h => h % 3 === 0))
+            .enter()
+            .append("text")
+            .attr("class", "hour-label")
+            .attr("x", d => d * cellSize + cellSize / 2)
+            .attr("y", -10)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "11px")
+            .text(d => `${d}:00`);
+
+        // Y軸（曜日）
+        svg1.selectAll(".day-label")
+            .data(days)
+            .enter()
+            .append("text")
+            .attr("class", "day-label")
+            .attr("x", -10)
+            .attr("y", (d, i) => i * cellSize + cellSize / 2)
+            .attr("text-anchor", "end")
+            .attr("dy", "0.35em")
+            .attr("font-size", "12px")
+            .text(d => d);
+
+        // 凡例
+        const legendWidth = 200;
+        const legend1 = svg1.append("g")
+            .attr("transform", `translate(${24 * cellSize - legendWidth}, ${-40})`);
+
+        const legendScale = d3.scaleLinear()
+            .domain([0, d3.max(timeData, d => d.value)])
+            .range([0, legendWidth]);
+
+        const legendAxis = d3.axisTop(legendScale)
+            .ticks(5)
+            .tickSize(6);
+
+        const defs = svg1.append("defs");
+        const gradient = defs.append("linearGradient")
+            .attr("id", "legend-gradient");
+
+        d3.range(0, 1.01, 0.1).forEach(t => {
+            gradient.append("stop")
+                .attr("offset", `${t * 100}%`)
+                .attr("stop-color", d3.interpolateYlOrRd(t));
+        });
+
+        legend1.append("rect")
+            .attr("width", legendWidth)
+            .attr("height", 10)
+            .attr("fill", "url(#legend-gradient)");
+
+        legend1.append("g")
+            .attr("transform", "translate(0, 0)")
+            .call(legendAxis)
+            .select(".domain").remove();
+
+        // ============================================
+        // 2. 相関マトリックスヒートマップ
+        // ============================================
+
+        // 変数名の配列
+        const variables = ["売上", "広告費", "顧客数", "価格", "在庫", "満足度"];
+
+        // 相関行列（-1から1の範囲の相関係数）
+        // correlationMatrix[i][j] = 変数iと変数jの相関係数
+        // 1.00: 完全に正の相関、0: 無相関、-1.00: 完全に負の相関
+        const correlationMatrix = [
+            [1.00, 0.85, 0.72, -0.35, 0.45, 0.68],   // 売上との相関
+            [0.85, 1.00, 0.65, -0.28, 0.38, 0.55],   // 広告費との相関
+            [0.72, 0.65, 1.00, -0.42, 0.52, 0.78],   // 顧客数との相関
+            [-0.35, -0.28, -0.42, 1.00, -0.15, -0.45], // 価格との相関（負の相関が多い）
+            [0.45, 0.38, 0.52, -0.15, 1.00, 0.32],   // 在庫との相関
+            [0.68, 0.55, 0.78, -0.45, 0.32, 1.00]    // 満足度との相関
+        ];
+
+        // マトリックスデータを1次元配列に変換（D3で扱いやすくする）
+        const correlationData = [];
+        variables.forEach((row, i) => {
+            // i: 行のインデックス
+            variables.forEach((col, j) => {
+                // j: 列のインデックス
+                correlationData.push({
+                    row: i,
+                    col: j,
+                    value: correlationMatrix[i][j]
+                });
+            });
+        });
+
+        const margin2 = {top: 80, right: 50, bottom: 30, left: 80};
+        const cellSize2 = 60;
+        const width2 = cellSize2 * variables.length + margin2.left + margin2.right;
+        const height2 = cellSize2 * variables.length + margin2.top + margin2.bottom;
+
+        const svg2 = d3.select("#correlation-heatmap")
+            .append("svg")
+            .attr("width", width2)
+            .attr("height", height2)
+            .append("g")
+            .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+        let colorScale2 = d3.scaleSequential(d3.interpolateRdBu)
+            .domain([1, -1]); // 反転して正の相関が赤
+
+        // セル
+        const cells = svg2.selectAll(".cell")
+            .data(correlationData)
+            .enter()
+            .append("g")
+            .attr("class", "cell-group");
+
+        cells.append("rect")
+            .attr("class", "cell")
+            .attr("x", d => d.col * cellSize2)
+            .attr("y", d => d.row * cellSize2)
+            .attr("width", cellSize2 - 4)
+            .attr("height", cellSize2 - 4)
+            .attr("fill", d => colorScale2(d.value))
+            .attr("rx", 4)
+            .on("mouseenter", function(event, d) {
+                tooltip.style("opacity", 1)
+                    .html(`
+                        <strong>${variables[d.row]} × ${variables[d.col]}</strong><br>
+                        相関係数: ${d.value.toFixed(2)}
+                    `)
+                    .style("left", (event.pageX + 15) + "px")
+                    .style("top", (event.pageY - 20) + "px");
+            })
+            .on("mouseleave", () => tooltip.style("opacity", 0));
+
+        // 値ラベル
+        cells.append("text")
+            .attr("x", d => d.col * cellSize2 + cellSize2 / 2 - 2)
+            .attr("y", d => d.row * cellSize2 + cellSize2 / 2 - 2)
+            .attr("text-anchor", "middle")
+            .attr("dy", "0.35em")
+            .attr("font-size", "12px")
+            .attr("font-weight", "bold")
+            .attr("fill", d => Math.abs(d.value) > 0.5 ? "white" : "#333")
+            .text(d => d.value.toFixed(2));
+
+        // X軸ラベル（上）
+        svg2.selectAll(".col-label")
+            .data(variables)
+            .enter()
+            .append("text")
+            .attr("class", "col-label")
+            .attr("x", (d, i) => i * cellSize2 + cellSize2 / 2 - 2)
+            .attr("y", -10)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "12px")
+            .attr("font-weight", "bold")
+            .text(d => d);
+
+        // Y軸ラベル
+        svg2.selectAll(".row-label")
+            .data(variables)
+            .enter()
+            .append("text")
+            .attr("class", "row-label")
+            .attr("x", -10)
+            .attr("y", (d, i) => i * cellSize2 + cellSize2 / 2 - 2)
+            .attr("text-anchor", "end")
+            .attr("dy", "0.35em")
+            .attr("font-size", "12px")
+            .attr("font-weight", "bold")
+            .text(d => d);
+
+        // 凡例
+        const legend2Width = 30;
+        const legend2Height = cellSize2 * variables.length - 4;
+        const legend2 = svg2.append("g")
+            .attr("transform", `translate(${variables.length * cellSize2 + 20}, 0)`);
+
+        const gradient2 = defs.append("linearGradient")
+            .attr("id", "legend-gradient2")
+            .attr("x1", "0%")
+            .attr("y1", "0%")
+            .attr("x2", "0%")
+            .attr("y2", "100%");
+
+        gradient2.append("stop")
+            .attr("offset", "0%")
+            .attr("stop-color", d3.interpolateRdBu(0));
+
+        gradient2.append("stop")
+            .attr("offset", "50%")
+            .attr("stop-color", d3.interpolateRdBu(0.5));
+
+        gradient2.append("stop")
+            .attr("offset", "100%")
+            .attr("stop-color", d3.interpolateRdBu(1));
+
+        legend2.append("rect")
+            .attr("width", legend2Width)
+            .attr("height", legend2Height)
+            .attr("fill", "url(#legend-gradient2)");
+
+        const legendScale2 = d3.scaleLinear()
+            .domain([1, -1])
+            .range([0, legend2Height]);
+
+        legend2.append("g")
+            .attr("transform", `translate(${legend2Width}, 0)`)
+            .call(d3.axisRight(legendScale2).ticks(5));
+
+        function updateColorScheme() {
+            const scheme = document.getElementById("color-scheme").value;
+            colorScale2 = d3.scaleSequential(d3[scheme])
+                .domain([1, -1]);
+
+            svg2.selectAll(".cell")
+                .transition()
+                .duration(500)
+                .attr("fill", d => colorScale2(d.value));
+
+            // グラデーション更新
+            gradient2.selectAll("stop").remove();
+            gradient2.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", d3[scheme](0));
+            gradient2.append("stop")
+                .attr("offset", "50%")
+                .attr("stop-color", d3[scheme](0.5));
+            gradient2.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", d3[scheme](1));
+        }
+    </script>
+</body>
+</html>
